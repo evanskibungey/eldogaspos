@@ -118,7 +118,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         
         // Sales
         Route::get('/sales/create', [SaleController::class, 'create'])->name('sales.create');
-        Route::post('/sales', [SaleController::class, 'store'])->name('sales.store');
+        Route::post('/sales', [PosController::class, 'store'])->name('sales.store');
         Route::get('/sales/history', [SaleController::class, 'history'])->name('sales.history');
         Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
         Route::post('/sales/{sale}/void', [SaleController::class, 'void'])->name('sales.void');
@@ -133,6 +133,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         
         // Debug route
         Route::post('/debug-sale', [PosController::class, 'debugSale'])->name('debug-sale');
+        
+        // Error testing page (remove in production)
+        Route::get('/test-errors', function() {
+            return view('test-pos-errors');
+        })->name('test-errors');
     });
 });
 

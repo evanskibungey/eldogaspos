@@ -8,6 +8,7 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Customer;
 use App\Models\Category;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -15,6 +16,17 @@ use Illuminate\Support\Str;
 
 class PosController extends Controller
 {
+    /**
+     * Get a setting value.
+     *
+     * @param string $key
+     * @param mixed $default
+     * @return mixed
+     */
+    private function getSetting($key, $default = null)
+    {
+        return Setting::get($key, $default);
+    }
     public function index()
     {
         try {

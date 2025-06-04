@@ -5,6 +5,10 @@
 
     <!-- Enhanced Print Styles for 57mm thermal receipt -->
     <style>
+        /* Hide Alpine.js elements until ready */
+        [x-cloak] { 
+            display: none !important;
+        }
         /* Improved UI Styles */
         .product-card {
             transition: all 0.2s ease-in-out;
@@ -341,7 +345,7 @@
         }
     </style>
 
-    <div x-data="posSystem()" class="flex h-screen bg-gray-50">
+    <div x-data="posSystem()" x-cloak class="flex h-screen bg-gray-50">
         <!-- Main Content Area -->
         <div class="flex-1 flex flex-col overflow-x-hidden">
             <!-- Top Navigation Bar - Enhanced UI -->
@@ -1039,14 +1043,15 @@
         </div>
 
         <!-- Enhanced Error Modal -->
-        <div x-show="showError" @click.self="showError = false"
+        <div x-show="showError && _initialized && errorMessage" @click.self="showError = false"
             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
             x-transition:enter="transition ease-out duration-300"
             x-transition:enter-start="opacity-0"
             x-transition:enter-end="opacity-100"
             x-transition:leave="transition ease-in duration-200"
             x-transition:leave-start="opacity-100"
-            x-transition:leave-end="opacity-0">
+            x-transition:leave-end="opacity-0"
+            style="display: none;">
             <div class="bg-white rounded-lg shadow-lg w-full max-w-md p-6"
                 x-transition:enter="transition ease-out duration-300"
                 x-transition:enter-start="opacity-0 transform scale-95"
@@ -1088,13 +1093,14 @@
                         phone: ''
                     },
                     showReceipt: false,
-                    showError: false,
+                    showError: false, // Explicitly set to false
                     receiptNumber: '',
                     errorMessage: '',
                     isLoading: false,
                     isProcessing: false,
                     subtotal: 0,
                     total: 0,
+                    _initialized: false, // Track initialization state
 
                     // Products Data
                     allProducts: @json($products),
@@ -1136,11 +1142,37 @@
 
                     // Methods
                     init() {
+                        console.log('Initializing POS System...');
+                        
+                        // Ensure error modal is hidden during initialization
+                        this.showError = false;
+                        this.errorMessage = '';
+                        
+                        // Reset state
+                        this.cart = [];
+                        this.paymentMethod = 'cash';
+                        this.customerDetails = {
+                            name: '',
+                            phone: ''
+                        };
+                        
                         this.updateTotals();
+                        
+                        // Mark as initialized
+                        this._initialized = true;
+                        
                         console.log('POS System Initialized');
 
                         // Dispatch event to parent layout indicating we're on the dashboard
                         window.dispatchEvent(new CustomEvent('on-dashboard'));
+                        
+                        // Force hide error modal after a brief delay
+                        setTimeout(() => {
+                            if (this.showError && !this.errorMessage) {
+                                console.log('Hiding stale error modal');
+                                this.showError = false;
+                            }
+                        }, 100);
                     },
 
                     toggleCategories() {
@@ -1158,6 +1190,10 @@
                         if (product.stock <= 0) {
                             this.showError = true;
                             this.errorMessage = 'This product is out of stock.';
+                            // Auto-close error after 3 seconds
+                            setTimeout(() => {
+                                this.showError = false;
+                            }, 3000);
                             return;
                         }
 
@@ -1175,7 +1211,8 @@
                         } else {
                             this.cart.push({
                                 ...product,
-                                quantity: 1
+                                quantity: 1,
+                                serial_number: product.serial_number || null
                             });
                         }
 
@@ -1210,6 +1247,10 @@
                             } else {
                                 this.showError = true;
                                 this.errorMessage = `Cannot add more. Only ${product.stock} available in stock.`;
+                                // Auto-close error after 3 seconds
+                                setTimeout(() => {
+                                    this.showError = false;
+                                }, 3000);
                             }
                         } else if (newQuantity <= 0) {
                             this.removeFromCart(index);
@@ -1264,6 +1305,10 @@
                             console.error('Sale exception:', error);
                             this.errorMessage = 'Network error or server exception occurred.';
                             this.showError = true;
+                            // Auto-close error after 5 seconds
+                            setTimeout(() => {
+                                this.showError = false;
+                            }, 5000);
                         } finally {
                             this.isProcessing = false;
                         }
@@ -1314,5 +1359,10 @@
                 }
             }
         </script>
+        
+        <!-- Development Error Testing Helper (Remove in Production) -->
+        @if(config('app.debug'))
+        <script src="{{ asset('js/pos-error-tester.js') }}"></script>
+        @endif
     </div>
 </x-app-layout>

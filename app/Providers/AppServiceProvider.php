@@ -27,12 +27,17 @@ class AppServiceProvider extends ServiceProvider
     public function boot()
     {
         // Load settings from database into config
-        if (Schema::hasTable('settings')) {
-            $settings = Setting::all();
-            
-            foreach ($settings as $setting) {
-                Config::set('settings.' . $setting->key, $setting->value);
+        try {
+            if (Schema::hasTable('settings')) {
+                $settings = Setting::all();
+                
+                foreach ($settings as $setting) {
+                    Config::set('settings.' . $setting->key, $setting->value);
+                }
             }
+        } catch (\Exception $e) {
+            // Silently fail if database is not set up yet
+            // This prevents errors during initial setup
         }
     }
 }

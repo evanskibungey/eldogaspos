@@ -41,7 +41,7 @@ return new class extends Migration
             'company_email' => 'info@eldogas.com',
             'company_phone' => '0700123456',
             'company_address' => 'Eldoret, Kenya',
-            'currency_symbol' => '$',
+            'currency_symbol' => 'KSh',
             'tax_percentage' => '16',
             'low_stock_threshold' => '10',
             'receipt_footer' => 'Thank you for your business!',

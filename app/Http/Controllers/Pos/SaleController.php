@@ -15,21 +15,7 @@ use Illuminate\Support\Str;
 
 class SaleController extends Controller
 {
-    /**
-     * Get settings helper function
-     * 
-     * @param string|null $key
-     * @param mixed $default
-     * @return mixed
-     */
-    protected function getSetting($key = null, $default = null)
-    {
-        if ($key) {
-            return Setting::where('key', $key)->value('value') ?? $default;
-        }
-        
-        return Setting::pluck('value', 'key')->toArray();
-    }
+    // Settings helper method removed - using global helper function instead
 
     /**
      * Display the sales creation page.
