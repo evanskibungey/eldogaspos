@@ -1,4 +1,4 @@
-<!-- resources/views/pos/dashboard.blade.php - Enhanced with Offline Capability -->
+<!-- resources/views/pos/dashboard.blade.php -->
 <x-app-layout>
     <!-- CSRF Token for API calls -->
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -348,7 +348,7 @@
     <div x-data="enhancedPosSystem()" x-cloak class="flex h-screen bg-gray-50">
         <!-- Main Content Area -->
         <div class="flex-1 flex flex-col overflow-x-hidden">
-            <!-- Top Navigation Bar - Enhanced with Offline Status -->
+            <!-- Top Navigation Bar - Enhanced UI -->
             <div class="bg-white border-b border-gray-200 px-4 py-2 sticky top-0 z-10 shadow-sm">
                 <div class="flex items-center justify-between">
                     <!-- Toggle for sidebar - Will dispatch events to parent -->
@@ -385,35 +385,6 @@
                                     d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                             </svg>
                         </div>
-                    </div>
-
-                    <!-- Connection Status & Sync Indicator -->
-                    <div class="flex items-center space-x-3 mr-3">
-                        <!-- Connection Status -->
-                        <div id="connection-status" 
-                             class="connection-status px-3 py-1.5 rounded-full text-sm font-medium flex items-center"
-                             :class="isOnline ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'">
-                            <div class="w-2 h-2 rounded-full mr-2"
-                                 :class="isOnline ? 'bg-green-500' : 'bg-red-500'">
-                            </div>
-                            <span x-text="isOnline ? 'Online' : 'Offline'"></span>
-                        </div>
-
-                        <!-- Enhanced Sync Status Button - Always Visible -->
-                        <button @click="toggleSyncStatus" 
-                                class="relative inline-flex items-center px-3 py-1.5 rounded-md transition-all duration-200 font-medium text-sm"
-                                :class="pendingSyncCount > 0 ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
-                                title="View sync status and pending operations">
-                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                            </svg>
-                            <span>Sync</span>
-                            <span x-show="pendingSyncCount > 0" 
-                                  class="ml-1.5 inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold rounded-full bg-red-500 text-white"
-                                  x-text="pendingSyncCount">
-                            </span>
-                        </button>
                     </div>
 
                     <!-- Categories dropdown - Improved design -->
@@ -476,84 +447,6 @@
                                     </button>
                                 </form>
                             </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Offline Mode Indicator -->
-            <div x-show="!isOnline" class="offline-mode-indicator">
-                <div class="flex items-center">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                    </svg>
-                    <span class="font-medium">Offline Mode Active</span>
-                </div>
-            </div>
-
-            <!-- Sync Status Panel -->
-            <div x-show="showSyncStatus" 
-                 x-transition:enter="transition ease-out duration-200"
-                 x-transition:enter-start="opacity-0 transform -translate-y-2"
-                 x-transition:enter-end="opacity-100 transform translate-y-0"
-                 x-transition:leave="transition ease-in duration-150"
-                 x-transition:leave-start="opacity-100 transform translate-y-0"
-                 x-transition:leave-end="opacity-0 transform -translate-y-2"
-                 @click.away="showSyncStatus = false"
-                 class="absolute top-14 right-32 z-50 bg-white rounded-lg shadow-xl border border-gray-200 w-80">
-                <div class="p-4">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-lg font-semibold text-gray-900 flex items-center">
-                            <svg class="w-5 h-5 mr-2 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                            </svg>
-                            Sync Status
-                        </h3>
-                        <button @click="showSyncStatus = false" class="text-gray-400 hover:text-gray-600 transition-colors">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    
-                    <div class="space-y-3">
-                        <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
-                            <span class="text-sm font-medium text-gray-600">Connection Status</span>
-                            <span class="text-sm font-semibold flex items-center"
-                                  :class="isOnline ? 'text-green-600' : 'text-red-600'">
-                                <div class="w-2 h-2 rounded-full mr-1.5"
-                                     :class="isOnline ? 'bg-green-500' : 'bg-red-500'">
-                                </div>
-                                <span x-text="isOnline ? 'Online' : 'Offline'"></span>
-                            </span>
-                        </div>
-                        
-                        <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
-                            <span class="text-sm font-medium text-gray-600">Pending Sync</span>
-                            <span class="text-sm font-semibold"
-                                  :class="pendingSyncCount > 0 ? 'text-orange-600' : 'text-gray-700'"
-                                  x-text="pendingSyncCount + ' items'"></span>
-                        </div>
-                        
-                        <template x-if="offlineSalesSummary">
-                            <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
-                                <span class="text-sm font-medium text-gray-600">Offline Sales</span>
-                                <span class="text-sm font-semibold text-gray-700" 
-                                      x-text="offlineSalesSummary.total_sales + ' total'"></span>
-                            </div>
-                        </template>
-                        
-                        <div class="pt-3 border-t border-gray-200">
-                            <button @click="forceSyncNow" 
-                                    :disabled="!isOnline || pendingSyncCount === 0"
-                                    class="w-full px-4 py-2 rounded-md font-medium text-sm transition-all duration-200 flex items-center justify-center"
-                                    :class="isOnline && pendingSyncCount > 0 ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'">
-                                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                                </svg>
-                                <span x-text="isOnline && pendingSyncCount > 0 ? 'Sync Now' : (isOnline ? 'Nothing to Sync' : 'Cannot Sync (Offline)')"></span>
-                            </button>
                         </div>
                     </div>
                 </div>
@@ -647,19 +540,6 @@
                         <span class="text-sm bg-gray-100 px-3 py-1 rounded-full text-gray-600 font-medium" x-text="filteredProducts.length + ' items'"></span>
                     </div>
 
-                    <!-- Offline Stock Warning -->
-                    <div x-show="!isOnline" class="offline-stock-warning">
-                        <div class="offline-stock-warning-content">
-                            <svg class="offline-stock-warning-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                            </svg>
-                            <div class="offline-stock-warning-text">
-                                <strong>Offline Mode:</strong> Stock levels shown may not reflect recent changes. 
-                                Inventory will be updated when connection is restored.
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Enhanced Empty state -->
                     <div x-show="!isLoading && filteredProducts.length === 0"
                         class="flex flex-col items-center justify-center h-64 bg-white rounded-lg shadow-sm p-8">
@@ -681,12 +561,7 @@
                     <div x-show="!isLoading && filteredProducts.length > 0"
                         class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                         <template x-for="product in filteredProducts" :key="product.id">
-                            <div class="product-card bg-white rounded-lg shadow-sm border border-gray-100 flex flex-col overflow-hidden relative">
-                                <!-- Offline Available Badge -->
-                                <div x-show="!isOnline" class="offline-available-badge">
-                                    Offline
-                                </div>
-                                
+                            <div class="product-card bg-white rounded-lg shadow-sm border border-gray-100 flex flex-col overflow-hidden">
                                 <!-- Clickable Image Container -->
                                 <div class="image-container cursor-pointer" @click="addToCart(product)">
                                     <img :src="product.image" :alt="product.name"
@@ -729,6 +604,8 @@
                                     <h3 class="text-xs font-semibold text-gray-900 mb-2 leading-tight hover:text-orange-600 cursor-pointer" 
                                         @click="addToCart(product)" x-text="product.name"></h3>
                                     
+                                    
+
                                     <div class="flex justify-between items-center mb-3 mt-auto">
                                         <span class="font-bold text-xs text-orange-600 price-tag"
                                             x-text="'KSh ' + product.price.toFixed(0)"></span>
@@ -857,16 +734,6 @@
 
                     <!-- Payment Section - Always at the bottom -->
                     <div class="cart-payment-section">
-                        <!-- Offline Mode Warning -->
-                        <div x-show="!isOnline" class="mb-3 p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-800">
-                            <div class="flex items-center">
-                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                                </svg>
-                                <span>Sale will be processed offline</span>
-                            </div>
-                        </div>
-
                         <!-- Payment Method Selection -->
                         <div class="mb-4">
                             <div class="flex space-x-2">
@@ -964,7 +831,6 @@
                         </h2>
                         <div class="flex items-center">
                             <span class="text-sm bg-white text-orange-600 px-2 py-1 rounded-full font-medium">#<span x-text="receiptNumber"></span></span>
-                            <span x-show="!isOnline" class="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">Offline</span>
                         </div>
                     </div>
                 </div>
@@ -1057,7 +923,6 @@
                     <div class="text-center text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
                         <p class="font-semibold text-gray-700">Thank you for your business!</p>
                         <p class="mt-1">Keep this receipt for any returns or exchanges.</p>
-                        <p x-show="!isOnline" class="mt-2 text-orange-600 font-medium">Transaction processed offline</p>
                     </div>
                 </div>
 
@@ -1111,10 +976,6 @@
                 <div class="transaction-info">
                     <div class="transaction-label">CASHIER:</div>
                     <div class="transaction-value">{{ substr(auth()->user()->name, 0, 10) }}</div>
-                </div>
-                <div x-show="!isOnline" class="transaction-info">
-                    <div class="transaction-label">MODE:</div>
-                    <div class="transaction-value">OFFLINE</div>
                 </div>
                 <div class="separator-line">----------------------------</div>
                 
@@ -1217,7 +1078,7 @@
             </div>
         </div>
 
-        <!-- Alpine.js Enhanced Script -->
+        <!-- Alpine.js Script -->
         <script>
             // Make categories available globally
             window.posCategories = @json($categories ?? []);
@@ -1225,7 +1086,7 @@
             // Enhanced POS System with Offline Capability
             function enhancedPosSystem() {
                 return {
-                    // Existing state variables
+                    // State Variables
                     cart: [],
                     searchQuery: '',
                     currentCategory: null,
@@ -1236,27 +1097,19 @@
                         phone: ''
                     },
                     showReceipt: false,
-                    showError: false,
+                    showError: false, // Explicitly set to false
                     receiptNumber: '',
                     errorMessage: '',
                     isLoading: false,
                     isProcessing: false,
                     subtotal: 0,
                     total: 0,
-                    _initialized: false,
-                    
-                    // New offline-related state variables
-                    isOnline: navigator.onLine,
-                    offlineManager: null,
-                    showOfflineStatus: false,
-                    pendingSyncCount: 0,
-                    offlineSalesSummary: null,
-                    showSyncStatus: false,
+                    _initialized: false, // Track initialization state
 
-                    // Products data
-                    allProducts: @json($products ?? []),
+                    // Products Data
+                    allProducts: @json($products),
 
-                    // Computed properties
+                    // Computed Properties
                     get filteredProducts() {
                         let products = this.allProducts;
 
@@ -1281,252 +1134,70 @@
                     get canCheckout() {
                         if (this.cart.length === 0 || this.isProcessing) return false;
 
-                        // Check stock availability for all items
-                        for (const item of this.cart) {
-                            const product = this.allProducts.find(p => p.id === item.id);
-                            if (!product || product.stock < item.quantity) {
-                                return false;
-                            }
-                        }
-
                         // Only require customer details for credit payment
                         if (this.paymentMethod === 'credit') {
                             return this.customerDetails.name.trim() !== '' &&
                                 this.customerDetails.phone.trim() !== '';
                         }
 
+                        // For cash payments, no customer details required
                         return true;
                     },
 
-                    get connectionStatusText() {
-                        if (this.isOnline) {
-                            return this.pendingSyncCount > 0 
-                                ? `Online (${this.pendingSyncCount} pending)` 
-                                : 'Online';
-                        }
-                        return 'Offline Mode';
-                    },
-
-                    // Initialize the enhanced POS system
-                    async init() {
-                        console.log('Initializing Enhanced POS System with Offline Support...');
+                    // Methods
+                    init() {
+                        console.log('Initializing POS System...');
                         
-                        try {
-                            // Wait for offline manager to be available
-                            await this.waitForOfflineManager();
-                            
-                            // Setup connection monitoring
-                            this.setupConnectionMonitoring();
-                            
-                            // Update sync status
-                            await this.updateSyncStatus();
-
-                            // Reset state
-                            this.resetSaleState();
-                            
-                            this._initialized = true;
-                            console.log('Enhanced POS System initialized successfully');
-
-                        } catch (error) {
-                            console.error('Failed to initialize Enhanced POS System:', error);
-                            this.showError = true;
-                            this.errorMessage = 'Failed to initialize POS system: ' + error.message;
-                        }
-                    },
-
-                    // Wait for offline manager to be available
-                    async waitForOfflineManager() {
-                        return new Promise((resolve) => {
-                            const checkManager = () => {
-                                if (window.offlinePOS && window.offlinePOS.db) {
-                                    this.offlineManager = window.offlinePOS;
-                                    resolve();
-                                } else {
-                                    setTimeout(checkManager, 100);
-                                }
-                            };
-                            checkManager();
-                        });
-                    },
-
-                    // Setup connection monitoring
-                    setupConnectionMonitoring() {
-                        // Listen for connection status changes
-                        window.addEventListener('connection-status-changed', (event) => {
-                            this.isOnline = event.detail.isOnline;
-                            this.updateSyncStatus();
-                        });
-
-                        // Update sync status periodically
-                        setInterval(() => {
-                            this.updateSyncStatus();
-                        }, 10000); // Every 10 seconds
-                    },
-
-                    // Enhanced sale processing with offline support
-                    async processSale() {
-                        if (!this.canCheckout) return;
-
-                        this.isProcessing = true;
-
-                        try {
-                            // Prepare sale data
-                            const saleData = {
-                                user_id: {{ auth()->id() }},
-                                cart_items: this.cart.map(item => ({
-                                    id: item.id,
-                                    quantity: item.quantity,
-                                    price: item.price,
-                                    serial_number: item.serial_number
-                                })),
-                                total_amount: this.total,
-                                payment_method: this.paymentMethod,
-                                customer_details: this.paymentMethod === 'credit' ? this.customerDetails : null
-                            };
-
-                            let result;
-
-                            if (this.isOnline) {
-                                // Try online processing first
-                                try {
-                                    result = await this.processSaleOnline(saleData);
-                                } catch (error) {
-                                    console.warn('Online processing failed, falling back to offline:', error);
-                                    result = await this.processSaleOffline(saleData);
-                                }
-                            } else {
-                                // Process offline
-                                result = await this.processSaleOffline(saleData);
-                            }
-
-                            if (result.success) {
-                                this.receiptNumber = result.receipt_number;
-                                this.showReceipt = true;
-                                
-                                // Update local stock immediately
-                                this.updateLocalProductStock();
-                                
-                                // Update sync status
-                                await this.updateSyncStatus();
-
-                                // Show appropriate message
-                                const mode = result.offline_mode ? 'offline' : 'online';
-                                console.log(`Sale processed successfully in ${mode} mode:`, result.receipt_number);
-                                
-                                if (result.offline_mode) {
-                                    this.showNotification('Sale processed offline. Will sync when online.', 'warning');
-                                }
-                            } else {
-                                throw new Error(result.message || 'Sale processing failed');
-                            }
-
-                        } catch (error) {
-                            console.error('Sale processing error:', error);
-                            this.errorMessage = error.message || 'An error occurred while processing the sale';
-                            this.showError = true;
-                        } finally {
-                            this.isProcessing = false;
-                        }
-                    },
-
-                    // Process sale online
-                    async processSaleOnline(saleData) {
-                        const response = await fetch('{{ route('pos.sales.store') }}', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
-                            },
-                            body: JSON.stringify(saleData)
-                        });
-
-                        if (!response.ok) {
-                            throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
-                        }
-
-                        const result = await response.json();
+                        // Ensure error modal is hidden during initialization
+                        this.showError = false;
+                        this.errorMessage = '';
                         
-                        if (!result.success) {
-                            throw new Error(result.message || 'Server rejected the sale');
-                        }
-
-                        return {
-                            ...result,
-                            offline_mode: false
+                        // Reset state
+                        this.cart = [];
+                        this.paymentMethod = 'cash';
+                        this.customerDetails = {
+                            name: '',
+                            phone: ''
                         };
-                    },
+                        
+                        this.updateTotals();
+                        
+                        // Mark as initialized
+                        this._initialized = true;
+                        
+                        console.log('POS System Initialized');
 
-                    // Process sale offline
-                    async processSaleOffline(saleData) {
-                        if (!this.offlineManager) {
-                            throw new Error('Offline processing not available');
-                        }
-
-                        return await this.offlineManager.processSaleOffline(saleData);
-                    },
-
-                    // Update local product stock after sale
-                    updateLocalProductStock() {
-                        for (const cartItem of this.cart) {
-                            const product = this.allProducts.find(p => p.id === cartItem.id);
-                            if (product) {
-                                product.stock = Math.max(0, product.stock - cartItem.quantity);
+                        // Dispatch event to parent layout indicating we're on the dashboard
+                        window.dispatchEvent(new CustomEvent('on-dashboard'));
+                        
+                        // Force hide error modal after a brief delay
+                        setTimeout(() => {
+                            if (this.showError && !this.errorMessage) {
+                                console.log('Hiding stale error modal');
+                                this.showError = false;
                             }
-                        }
+                        }, 100);
                     },
 
-                    // Update sync status
-                    async updateSyncStatus() {
-                        if (!this.offlineManager) return;
-
-                        try {
-                            this.pendingSyncCount = await this.offlineManager.getPendingOperationsCount();
-                            this.offlineSalesSummary = await this.offlineManager.getOfflineSalesSummary();
-                        } catch (error) {
-                            console.error('Error updating sync status:', error);
-                        }
+                    toggleCategories() {
+                        this.showCategoryDrawer = !this.showCategoryDrawer;
                     },
 
-                    // Toggle sync status display
-                    toggleSyncStatus() {
-                        this.showSyncStatus = !this.showSyncStatus;
+                    getCategoryName(categoryId) {
+                        const categories = @json($categories ?? []);
+                        const category = categories.find(c => c.id === categoryId);
+                        return category ? category.name : 'Unknown Category';
                     },
 
-                    // Force sync now
-                    async forceSyncNow() {
-                        if (!this.isOnline || !this.offlineManager) {
-                            this.showNotification('Cannot sync while offline', 'error');
-                            return;
-                        }
-
-                        try {
-                            this.showNotification('Starting synchronization...', 'info');
-                            await this.offlineManager.startBackgroundSync();
-                            await this.updateSyncStatus();
-                            this.showNotification('Synchronization completed', 'success');
-                        } catch (error) {
-                            console.error('Manual sync failed:', error);
-                            this.showNotification('Synchronization failed: ' + error.message, 'error');
-                        }
-                    },
-
-                    // Show notification
-                    showNotification(message, type = 'info') {
-                        if (this.offlineManager) {
-                            this.offlineManager.showNotification(message, type);
-                        } else {
-                            // Fallback notification
-                            console.log(`${type.toUpperCase()}: ${message}`);
-                        }
-                    },
-
-                    // Enhanced add to cart with offline stock checking
                     addToCart(product) {
                         // Check if product has stock
                         if (product.stock <= 0) {
                             this.showError = true;
                             this.errorMessage = 'This product is out of stock.';
-                            setTimeout(() => this.showError = false, 3000);
+                            // Auto-close error after 3 seconds
+                            setTimeout(() => {
+                                this.showError = false;
+                            }, 3000);
                             return;
                         }
 
@@ -1537,7 +1208,6 @@
                             if (this.cart[existingIndex].quantity + 1 > product.stock) {
                                 this.showError = true;
                                 this.errorMessage = `Cannot add more. Only ${product.stock} available in stock.`;
-                                setTimeout(() => this.showError = false, 3000);
                                 return;
                             }
 
@@ -1551,9 +1221,21 @@
                         }
 
                         this.updateTotals();
+                        
+                        // Show a brief notification or animation to confirm product added
+                        this.showAddedToCartNotification(product.name);
+                    },
+                    
+                    showAddedToCartNotification(productName) {
+                        // This could be enhanced with a toast notification library
+                        console.log(`${productName} added to cart`);
                     },
 
-                    // Enhanced quantity update with stock checking
+                    removeFromCart(index) {
+                        this.cart.splice(index, 1);
+                        this.updateTotals();
+                    },
+
                     updateQuantity(index, change) {
                         const item = this.cart[index];
                         if (!item) return;
@@ -1569,7 +1251,10 @@
                             } else {
                                 this.showError = true;
                                 this.errorMessage = `Cannot add more. Only ${product.stock} available in stock.`;
-                                setTimeout(() => this.showError = false, 3000);
+                                // Auto-close error after 3 seconds
+                                setTimeout(() => {
+                                    this.showError = false;
+                                }, 3000);
                             }
                         } else if (newQuantity <= 0) {
                             this.removeFromCart(index);
@@ -1578,61 +1263,102 @@
                         this.updateTotals();
                     },
 
-                    // Reset sale state
-                    resetSaleState() {
-                        this.cart = [];
-                        this.paymentMethod = 'cash';
-                        this.customerDetails = { name: '', phone: '' };
-                        this.showReceipt = false;
-                        this.showError = false;
-                        this.errorMessage = '';
-                        this.updateTotals();
-                    },
-
-                    // Update totals
                     updateTotals() {
                         this.subtotal = this.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-                        this.total = this.subtotal; // No tax for now
+                        // For now, total is same as subtotal (no tax or discount)
+                        this.total = this.subtotal;
                     },
 
-                    // Remove from cart
-                    removeFromCart(index) {
-                        this.cart.splice(index, 1);
-                        this.updateTotals();
+                    async processSale() {
+                        if (!this.canCheckout) return;
+
+                        this.isProcessing = true;
+
+                        try {
+                            const response = await fetch('{{ route('pos.sales.store') }}', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                                },
+                                body: JSON.stringify({
+                                    cart_items: this.cart,
+                                    payment_method: this.paymentMethod,
+                                    customer_details: this.paymentMethod === 'credit' ? this
+                                        .customerDetails : null
+                                })
+                            });
+
+                            const result = await response.json();
+
+                            if (result.success) {
+                                this.receiptNumber = result.receipt_number;
+                                this.showReceipt = true;
+
+                                // Debug log to verify receipt data
+                                console.log('Receipt data:', {
+                                    items: this.cart,
+                                    total: this.total,
+                                    receiptNumber: this.receiptNumber
+                                });
+                            } else {
+                                this.errorMessage = result.message || 'Error processing sale';
+                                this.showError = true;
+                            }
+                        } catch (error) {
+                            console.error('Sale exception:', error);
+                            this.errorMessage = 'Network error or server exception occurred.';
+                            this.showError = true;
+                            // Auto-close error after 5 seconds
+                            setTimeout(() => {
+                                this.showError = false;
+                            }, 5000);
+                        } finally {
+                            this.isProcessing = false;
+                        }
                     },
 
-                    // Close receipt and reset
-                    closeReceipt() {
-                        this.showReceipt = false;
-                        this.resetSaleState();
-                        
-                        // Update sync status after closing receipt
-                        this.updateSyncStatus();
-                    },
-
-                    // Print receipt
                     printReceipt() {
+                        // Force the receipt to be visible for printing
                         this.showReceipt = true;
                         const receiptElement = document.querySelector('.printable-receipt');
 
+                        // Make the receipt visible temporarily for printing
                         if (receiptElement) {
                             receiptElement.style.display = 'block';
                         }
 
+                        // Debug information
+                        console.log('Receipt data:', {
+                            items: this.cart,
+                            total: this.total,
+                            receipt: receiptElement,
+                            visibility: receiptElement ? window.getComputedStyle(receiptElement).display : 'not found'
+                        });
+
+                        // Give the browser more time to render before printing
                         setTimeout(() => {
                             window.print();
+                            // After printing finishes (user closes dialog), continue showing the receipt on screen
+                            // The CSS will handle hiding everything else during actual printing
                         }, 300);
                     },
 
-                    // Category management (existing methods)
-                    toggleCategories() {
-                        this.showCategoryDrawer = !this.showCategoryDrawer;
-                    },
+                    closeReceipt() {
+                        this.showReceipt = false;
+                        this.cart = [];
+                        this.updateTotals();
+                        this.paymentMethod = 'cash';
+                        this.customerDetails = {
+                            name: '',
+                            phone: ''
+                        };
 
-                    getCategoryName(categoryId) {
-                        const categories = window.posCategories || [];
-                        const category = categories.find(c => c.id === categoryId);
-                        return category ? category.name : 'Unknown Category';
+                        // Reset the receipt element display style
+                        const receiptElement = document.querySelector('.printable-receipt');
+                        if (receiptElement) {
+                            receiptElement.style.display = 'none';
+                        }
                     }
                 }
             }

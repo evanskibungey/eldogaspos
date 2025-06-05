@@ -70,6 +70,16 @@ class PosController extends Controller
     {
         Log::info('POS sale request:', $request->all());
 
+        // Check if this is an offline sync request
+        $isOfflineSync = $request->hasHeader('X-Offline-Sync');
+        
+        if ($isOfflineSync) {
+            Log::info('Detected offline sync request - redirecting to sync controller');
+            // For offline sync requests, use the dedicated sync controller
+            $syncController = new \App\Http\Controllers\Api\OfflineSyncController();
+            return $syncController->syncOfflineSale($request);
+        }
+
         try {
             // Validate the request
             Log::info('Validating request');

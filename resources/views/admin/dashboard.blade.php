@@ -1,5 +1,8 @@
 <!-- resources/views/admin/dashboard.blade.php -->
 <x-app-layout>
+    <!-- CSRF Token for API calls -->
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    
     <div class="py-6 bg-gray-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <!-- Top Action Bar with Company Name -->
@@ -8,7 +11,23 @@
                     <h2 class="text-2xl font-semibold text-gray-800">{{ $companyName }} Dashboard</h2>
                     <p class="text-sm text-gray-500 mt-1">Welcome back! Here's your business at a glance.</p>
                 </div>
-                <div class="flex space-x-3">
+                <div class="flex space-x-3" x-data="syncStatusAdmin()" x-init="init()">
+                    <!-- Sync Status Button -->
+                    <button @click="toggleSyncStatus" 
+                            class="relative inline-flex items-center px-4 py-2 font-medium rounded-lg text-sm transition-all duration-200"
+                            :class="pendingSyncCount > 0 ? 'bg-orange-600 hover:bg-orange-700 text-white' : 'bg-gray-600 hover:bg-gray-700 text-white'"
+                            title="View sync status and pending operations">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        <span>Sync Status</span>
+                        <span x-show="pendingSyncCount > 0" 
+                              class="ml-2 inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold rounded-full bg-red-500 text-white"
+                              x-text="pendingSyncCount">
+                        </span>
+                    </button>
+
                     <a href="{{ route('admin.reports.sales') }}" class="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg text-sm transition-colors duration-200">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -21,6 +40,74 @@
                         </svg>
                         Add New User
                     </button>
+
+                    <!-- Sync Status Panel -->
+                    <div x-show="showSyncStatus" 
+                         x-transition:enter="transition ease-out duration-200"
+                         x-transition:enter-start="opacity-0 transform -translate-y-2"
+                         x-transition:enter-end="opacity-100 transform translate-y-0"
+                         x-transition:leave="transition ease-in duration-150"
+                         x-transition:leave-start="opacity-100 transform translate-y-0"
+                         x-transition:leave-end="opacity-0 transform -translate-y-2"
+                         @click.away="showSyncStatus = false"
+                         class="absolute top-12 left-0 z-50 bg-white rounded-lg shadow-xl border border-gray-200 w-80">
+                        <div class="p-4">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                                    <svg class="w-5 h-5 mr-2 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                    </svg>
+                                    Sync Status
+                                </h3>
+                                <button @click="showSyncStatus = false" class="text-gray-400 hover:text-gray-600 transition-colors">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            
+                            <div class="space-y-3">
+                                <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
+                                    <span class="text-sm font-medium text-gray-600">Connection Status</span>
+                                    <span class="text-sm font-semibold flex items-center"
+                                          :class="isOnline ? 'text-green-600' : 'text-red-600'">
+                                        <div class="w-2 h-2 rounded-full mr-1.5"
+                                             :class="isOnline ? 'bg-green-500' : 'bg-red-500'">
+                                        </div>
+                                        <span x-text="isOnline ? 'Online' : 'Offline'"></span>
+                                    </span>
+                                </div>
+                                
+                                <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
+                                    <span class="text-sm font-medium text-gray-600">Pending Sync</span>
+                                    <span class="text-sm font-semibold"
+                                          :class="pendingSyncCount > 0 ? 'text-orange-600' : 'text-gray-700'"
+                                          x-text="pendingSyncCount + ' items'"></span>
+                                </div>
+                                
+                                <template x-if="offlineSalesSummary">
+                                    <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
+                                        <span class="text-sm font-medium text-gray-600">Offline Sales</span>
+                                        <span class="text-sm font-semibold text-gray-700" 
+                                              x-text="offlineSalesSummary.total_sales + ' total'"></span>
+                                    </div>
+                                </template>
+                                
+                                <div class="pt-3 border-t border-gray-200">
+                                    <button @click="forceSyncNow" 
+                                            :disabled="!isOnline || pendingSyncCount === 0"
+                                            class="w-full px-4 py-2 rounded-md font-medium text-sm transition-all duration-200 flex items-center justify-center"
+                                            :class="isOnline && pendingSyncCount > 0 ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'">
+                                        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                        </svg>
+                                        <span x-text="isOnline && pendingSyncCount > 0 ? 'Sync Now' : (isOnline ? 'Nothing to Sync' : 'Cannot Sync (Offline)')"></span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -462,6 +549,181 @@
     @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
+        // Sync Status Admin Function
+        function syncStatusAdmin() {
+            return {
+                isOnline: navigator.onLine,
+                showSyncStatus: false,
+                pendingSyncCount: 0,
+                offlineSalesSummary: null,
+                offlineManager: null,
+
+                async init() {
+                    console.log('Initializing Sync Status for Admin Dashboard...');
+                    
+                    try {
+                        // Wait for offline manager if available
+                        await this.waitForOfflineManager();
+                        
+                        // Setup connection monitoring
+                        this.setupConnectionMonitoring();
+                        
+                        // Update sync status
+                        await this.updateSyncStatus();
+                        
+                        console.log('Sync Status initialized successfully');
+                    } catch (error) {
+                        console.error('Failed to initialize Sync Status:', error);
+                    }
+                },
+
+                async waitForOfflineManager() {
+                    return new Promise((resolve, reject) => {
+                        let attempts = 0;
+                        const maxAttempts = 20; // 2 seconds max wait
+                        
+                        const checkManager = () => {
+                            attempts++;
+                            
+                            if (window.offlinePOS && window.offlinePOS.db) {
+                                this.offlineManager = window.offlinePOS;
+                                resolve();
+                            } else if (attempts >= maxAttempts) {
+                                console.warn('Offline manager not available, continuing without it');
+                                resolve();
+                            } else {
+                                setTimeout(checkManager, 100);
+                            }
+                        };
+                        checkManager();
+                    });
+                },
+
+                setupConnectionMonitoring() {
+                    // Monitor online/offline status
+                    window.addEventListener('online', () => {
+                        this.isOnline = true;
+                        this.updateSyncStatus();
+                    });
+                    
+                    window.addEventListener('offline', () => {
+                        this.isOnline = false;
+                        this.updateSyncStatus();
+                    });
+                    
+                    // Listen for sync status updates if available
+                    window.addEventListener('sync-status-updated', (event) => {
+                        this.updateSyncStatus();
+                    });
+                    
+                    // Update periodically
+                    setInterval(() => {
+                        this.updateSyncStatus();
+                    }, 30000); // Every 30 seconds
+                },
+
+                async updateSyncStatus() {
+                    if (!this.offlineManager) {
+                        // Try to get data from API if offline manager is not available
+                        try {
+                            const response = await fetch('/api/v1/offline/sync-status');
+                            if (response.ok) {
+                                const data = await response.json();
+                                this.pendingSyncCount = data.pendingCount || 0;
+                                this.offlineSalesSummary = data.summary || null;
+                            }
+                        } catch (error) {
+                            console.error('Error fetching sync status:', error);
+                        }
+                    } else {
+                        // Use offline manager if available
+                        try {
+                            this.pendingSyncCount = await this.offlineManager.getPendingOperationsCount();
+                            this.offlineSalesSummary = await this.offlineManager.getOfflineSalesSummary();
+                        } catch (error) {
+                            console.error('Error updating sync status:', error);
+                        }
+                    }
+                },
+
+                toggleSyncStatus() {
+                    this.showSyncStatus = !this.showSyncStatus;
+                    if (this.showSyncStatus) {
+                        this.updateSyncStatus();
+                    }
+                },
+
+                async forceSyncNow() {
+                    if (!this.isOnline) {
+                        alert('Cannot sync while offline');
+                        return;
+                    }
+
+                    try {
+                        // Show loading state
+                        const button = event.target.closest('button');
+                        const originalText = button.innerHTML;
+                        button.innerHTML = '<svg class="animate-spin h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Syncing...';
+                        button.disabled = true;
+
+                        if (this.offlineManager) {
+                            await this.offlineManager.startBackgroundSync();
+                        } else {
+                            // Trigger sync via API
+                            const response = await fetch('/api/v1/offline/sync-all', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
+                                }
+                            });
+                            
+                            if (!response.ok) {
+                                throw new Error('Sync failed');
+                            }
+                        }
+                        
+                        await this.updateSyncStatus();
+                        
+                        // Restore button state
+                        button.innerHTML = originalText;
+                        button.disabled = false;
+                        
+                        // Show success message
+                        this.showNotification('Synchronization completed successfully', 'success');
+                    } catch (error) {
+                        console.error('Manual sync failed:', error);
+                        alert('Synchronization failed: ' + error.message);
+                    }
+                },
+
+                showNotification(message, type = 'info') {
+                    // Create notification element
+                    const notification = document.createElement('div');
+                    notification.className = `fixed top-4 right-4 px-4 py-3 rounded-lg text-white font-medium shadow-lg transition-all duration-300 z-50`;
+                    
+                    // Set background color based on type
+                    const bgColors = {
+                        success: 'bg-green-500',
+                        error: 'bg-red-500',
+                        warning: 'bg-yellow-500',
+                        info: 'bg-blue-500'
+                    };
+                    
+                    notification.classList.add(bgColors[type] || bgColors.info);
+                    notification.textContent = message;
+                    
+                    document.body.appendChild(notification);
+                    
+                    // Remove after 3 seconds
+                    setTimeout(() => {
+                        notification.classList.add('opacity-0');
+                        setTimeout(() => notification.remove(), 300);
+                    }, 3000);
+                }
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             // Sales Trend Chart
             const salesTrendCtx = document.getElementById('salesTrendChart').getContext('2d');

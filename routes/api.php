@@ -31,4 +31,14 @@ Route::prefix('v1')->group(function () {
         
         // More API endpoints will be added here in future phases
     });
+    
+    // Offline POS Sync routes (using web auth for now)
+    Route::middleware('auth')->prefix('offline')->group(function () {
+        Route::get('/products', [App\Http\Controllers\Api\OfflineSyncController::class, 'getProductsForOffline']);
+        Route::post('/sync-sale', [App\Http\Controllers\Api\OfflineSyncController::class, 'syncOfflineSale']);
+        Route::post('/batch-sync-sales', [App\Http\Controllers\Api\OfflineSyncController::class, 'batchSyncOfflineSales']);
+        Route::get('/sync-status', [App\Http\Controllers\Api\OfflineSyncController::class, 'getSyncStatus']);
+        Route::get('/failed-syncs', [App\Http\Controllers\Api\OfflineSyncController::class, 'getFailedSyncs']);
+        Route::post('/retry-sync', [App\Http\Controllers\Api\OfflineSyncController::class, 'retrySyncLog']);
+    });
 });
