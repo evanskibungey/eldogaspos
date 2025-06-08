@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Setting;
+use Illuminate\Support\Facades\Schema;
 
 if (!function_exists('setting')) {
     /**

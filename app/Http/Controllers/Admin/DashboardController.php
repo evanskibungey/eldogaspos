@@ -48,11 +48,16 @@ class DashboardController extends Controller
             'total_cashiers' => User::where('role', 'cashier')->count(),
             'active_users' => User::where('status', 'active')->count(),
             
-            // Product Statistics
+            // Product Statistics - Fixed to handle NULL status
             'total_products' => Product::count(),
             'active_products' => Product::where('status', 'active')->count(),
+            'inactive_products' => Product::where('status', 'inactive')->count(),
             'total_categories' => Category::count(),
-            'low_stock_products' => Product::whereColumn('stock', '<=', DB::raw('GREATEST(min_stock, ' . $lowStockThreshold . ')'))->count(),
+            'low_stock_products' => Product::where('status', 'active')
+                ->where(function($query) use ($lowStockThreshold) {
+                    $query->whereColumn('stock', '<=', 'min_stock')
+                          ->orWhere('stock', '<=', $lowStockThreshold);
+                })->count(),
             
             // Stock Movement Statistics
             'total_movements' => StockMovement::count(),
@@ -220,7 +225,7 @@ class DashboardController extends Controller
     private function getTotalStockValue() 
     {
         return Product::where('status', 'active')
-            ->sum(DB::raw('stock * cost_price'));
+            ->sum(DB::raw('COALESCE(stock, 0) * COALESCE(cost_price, price)'));
     }
     
     /**

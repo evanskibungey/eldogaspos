@@ -15,8 +15,6 @@ use Illuminate\Support\Str;
 
 class SaleController extends Controller
 {
-    // Settings helper method removed - using global helper function instead
-
     /**
      * Display the sales creation page.
      *
@@ -25,9 +23,9 @@ class SaleController extends Controller
     public function create()
     {
         $products = Product::where('status', 'active')->get();
-        $currencySymbol = $this->getSetting('currency_symbol', '$');
-        $taxPercentage = (float)$this->getSetting('tax_percentage', 0);
-        $companyName = $this->getSetting('company_name', 'Our Store');
+        $currencySymbol = setting('currency_symbol', '$');
+        $taxPercentage = (float)setting('tax_percentage', 0);
+        $companyName = setting('company_name', 'Our Store');
         
         return view('pos.sales.create', compact('products', 'currencySymbol', 'taxPercentage', 'companyName'));
     }
@@ -112,9 +110,9 @@ class SaleController extends Controller
 
             Log::info('Sale completed successfully', ['receipt_number' => $receiptNumber]);
 
-            $currencySymbol = $this->getSetting('currency_symbol', '$');
-            $companyName = $this->getSetting('company_name', 'Our Store');
-            $receiptFooter = $this->getSetting('receipt_footer', 'Thank you for your business!');
+            $currencySymbol = setting('currency_symbol', '$');
+            $companyName = setting('company_name', 'Our Store');
+            $receiptFooter = setting('receipt_footer', 'Thank you for your business!');
 
             return response()->json([
                 'success' => true,
@@ -162,8 +160,8 @@ class SaleController extends Controller
     public function history(Request $request)
     {
         // Get settings
-        $currencySymbol = $this->getSetting('currency_symbol', '$');
-        $companyName = $this->getSetting('company_name', 'Our Store');
+        $currencySymbol = setting('currency_symbol', '$');
+        $companyName = setting('company_name', 'Our Store');
         
         // Build query
         $query = Sale::with(['customer', 'items.product']);
@@ -209,13 +207,13 @@ class SaleController extends Controller
         
         $sale->load(['customer', 'items.product', 'user']);
         
-        $currencySymbol = $this->getSetting('currency_symbol', '$');
-        $taxPercentage = (float)$this->getSetting('tax_percentage', 0);
-        $companyName = $this->getSetting('company_name', 'Our Store');
-        $companyAddress = $this->getSetting('company_address', '');
-        $companyPhone = $this->getSetting('company_phone', '');
-        $companyEmail = $this->getSetting('company_email', '');
-        $receiptFooter = $this->getSetting('receipt_footer', 'Thank you for your business!');
+        $currencySymbol = setting('currency_symbol', '$');
+        $taxPercentage = (float)setting('tax_percentage', 0);
+        $companyName = setting('company_name', 'Our Store');
+        $companyAddress = setting('company_address', '');
+        $companyPhone = setting('company_phone', '');
+        $companyEmail = setting('company_email', '');
+        $receiptFooter = setting('receipt_footer', 'Thank you for your business!');
         
         return view('pos.sales.show', compact(
             'sale', 
@@ -340,7 +338,7 @@ class SaleController extends Controller
         });
         
         // Apply tax if configured
-        $taxPercentage = (float)$this->getSetting('tax_percentage', 0);
+        $taxPercentage = (float)setting('tax_percentage', 0);
         if ($taxPercentage > 0) {
             $taxAmount = $subtotal * ($taxPercentage / 100);
             return $subtotal + $taxAmount;

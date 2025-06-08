@@ -1217,12 +1217,22 @@
             </div>
         </div>
 
-        <!-- Alpine.js Enhanced Script -->
+        <!-- Alpine.js Enhanced Script with Conditional Offline Support -->
+        
+        @if(config('offline.enabled', false))
+        <!-- Offline Support Script (Only loaded in production/when enabled) -->
+        <script src="{{ asset('js/offline-pos.js') }}"></script>
+        @endif
+        
         <script>
             // Make categories available globally
             window.posCategories = @json($categories ?? []);
             
-            // Enhanced POS System with Offline Capability
+            // Offline mode configuration from Laravel config
+            window.offlineModeEnabled = @json(config('offline.enabled', false));
+            window.offlineConfig = @json(config('offline', []));
+            
+            // Enhanced POS System with Conditional Offline Capability
             function enhancedPosSystem() {
                 return {
                     // Existing state variables
@@ -1245,13 +1255,14 @@
                     total: 0,
                     _initialized: false,
                     
-                    // New offline-related state variables
-                    isOnline: navigator.onLine,
+                    // Offline-related state variables - Conditional based on config
+                    isOnline: window.offlineModeEnabled ? navigator.onLine : true,
                     offlineManager: null,
                     showOfflineStatus: false,
                     pendingSyncCount: 0,
                     offlineSalesSummary: null,
                     showSyncStatus: false,
+                    offlineModeEnabled: window.offlineModeEnabled,
 
                     // Products data
                     allProducts: @json($products ?? []),
@@ -1299,6 +1310,10 @@
                     },
 
                     get connectionStatusText() {
+                        if (!this.offlineModeEnabled) {
+                            return 'Online (Offline Mode Disabled)';
+                        }
+                        
                         if (this.isOnline) {
                             return this.pendingSyncCount > 0 
                                 ? `Online (${this.pendingSyncCount} pending)` 
@@ -1307,10 +1322,37 @@
                         return 'Offline Mode';
                     },
 
-                    // Initialize the enhanced POS system
+                    // Initialize the POS system with conditional offline support
                     async init() {
-                        console.log('Initializing Enhanced POS System with Offline Support...');
+                        console.log('Initializing POS System...');
+                        console.log('Offline mode enabled:', this.offlineModeEnabled);
                         
+                        try {
+                            if (this.offlineModeEnabled) {
+                                // Full offline initialization for production
+                                console.log('Initializing with offline support...');
+                                await this.initializeOfflineSupport();
+                            } else {
+                                // Simplified initialization for development
+                                console.log('Initializing without offline support (development mode)...');
+                                this.setupBasicConnectionMonitoring();
+                            }
+
+                            // Reset state
+                            this.resetSaleState();
+                            
+                            this._initialized = true;
+                            console.log('POS System initialized successfully');
+
+                        } catch (error) {
+                            console.error('Failed to initialize POS System:', error);
+                            this.showError = true;
+                            this.errorMessage = 'Failed to initialize POS system: ' + error.message;
+                        }
+                    },
+
+                    // Initialize full offline support for production
+                    async initializeOfflineSupport() {
                         try {
                             // Wait for offline manager to be available
                             await this.waitForOfflineManager();
@@ -1320,38 +1362,53 @@
                             
                             // Update sync status
                             await this.updateSyncStatus();
-
-                            // Reset state
-                            this.resetSaleState();
                             
-                            this._initialized = true;
-                            console.log('Enhanced POS System initialized successfully');
-
+                            console.log('Offline support initialized successfully');
                         } catch (error) {
-                            console.error('Failed to initialize Enhanced POS System:', error);
-                            this.showError = true;
-                            this.errorMessage = 'Failed to initialize POS system: ' + error.message;
+                            console.warn('Offline support initialization failed:', error);
+                            // Fall back to basic monitoring if offline setup fails
+                            this.setupBasicConnectionMonitoring();
                         }
                     },
 
                     // Wait for offline manager to be available
                     async waitForOfflineManager() {
-                        return new Promise((resolve) => {
+                        return new Promise((resolve, reject) => {
+                            let attempts = 0;
+                            const maxAttempts = 50; // 5 seconds timeout
+                            
                             const checkManager = () => {
+                                attempts++;
+                                
                                 if (window.offlinePOS && window.offlinePOS.db) {
                                     this.offlineManager = window.offlinePOS;
                                     resolve();
+                                } else if (attempts >= maxAttempts) {
+                                    reject(new Error('Offline manager failed to initialize'));
                                 } else {
                                     setTimeout(checkManager, 100);
                                 }
                             };
+                            
                             checkManager();
                         });
                     },
 
-                    // Setup connection monitoring
+                    // Setup full connection monitoring with offline support
                     setupConnectionMonitoring() {
                         // Listen for connection status changes
+                        window.addEventListener('online', () => {
+                            this.isOnline = true;
+                            console.log('Connection restored');
+                            this.updateSyncStatus();
+                        });
+                        
+                        window.addEventListener('offline', () => {
+                            this.isOnline = false;
+                            console.log('Connection lost - switching to offline mode');
+                        });
+                        
+                        // Listen for custom connection events
                         window.addEventListener('connection-status-changed', (event) => {
                             this.isOnline = event.detail.isOnline;
                             this.updateSyncStatus();
@@ -1359,11 +1416,30 @@
 
                         // Update sync status periodically
                         setInterval(() => {
-                            this.updateSyncStatus();
-                        }, 10000); // Every 10 seconds
+                            if (this.offlineManager) {
+                                this.updateSyncStatus();
+                            }
+                        }, 30000); // Every 30 seconds
                     },
 
-                    // Enhanced sale processing with offline support
+                    // Setup basic connection monitoring for local development
+                    setupBasicConnectionMonitoring() {
+                        // Simple connection monitoring
+                        window.addEventListener('online', () => {
+                            this.isOnline = true;
+                            console.log('Connection restored');
+                        });
+                        
+                        window.addEventListener('offline', () => {
+                            this.isOnline = false;
+                            console.log('Connection lost');
+                        });
+                        
+                        // For local development, always stay online
+                        this.isOnline = true;
+                    },
+
+                    // Enhanced sale processing with conditional offline support
                     async processSale() {
                         if (!this.canCheckout) return;
 
@@ -1386,17 +1462,23 @@
 
                             let result;
 
-                            if (this.isOnline) {
-                                // Try online processing first
-                                try {
-                                    result = await this.processSaleOnline(saleData);
-                                } catch (error) {
-                                    console.warn('Online processing failed, falling back to offline:', error);
+                            if (this.offlineModeEnabled) {
+                                // Full offline-enabled processing for production
+                                if (this.isOnline) {
+                                    // Try online processing first
+                                    try {
+                                        result = await this.processSaleOnline(saleData);
+                                    } catch (error) {
+                                        console.warn('Online processing failed, falling back to offline:', error);
+                                        result = await this.processSaleOffline(saleData);
+                                    }
+                                } else {
+                                    // Process offline
                                     result = await this.processSaleOffline(saleData);
                                 }
                             } else {
-                                // Process offline
-                                result = await this.processSaleOffline(saleData);
+                                // Development mode - online only
+                                result = await this.processSaleOnline(saleData);
                             }
 
                             if (result.success) {
@@ -1406,15 +1488,19 @@
                                 // Update local stock immediately
                                 this.updateLocalProductStock();
                                 
-                                // Update sync status
-                                await this.updateSyncStatus();
+                                if (this.offlineModeEnabled) {
+                                    // Update sync status
+                                    await this.updateSyncStatus();
 
-                                // Show appropriate message
-                                const mode = result.offline_mode ? 'offline' : 'online';
-                                console.log(`Sale processed successfully in ${mode} mode:`, result.receipt_number);
-                                
-                                if (result.offline_mode) {
-                                    this.showNotification('Sale processed offline. Will sync when online.', 'warning');
+                                    // Show appropriate message
+                                    const mode = result.offline_mode ? 'offline' : 'online';
+                                    console.log(`Sale processed successfully in ${mode} mode:`, result.receipt_number);
+                                    
+                                    if (result.offline_mode) {
+                                        this.showNotification('Sale processed offline. Will sync when online.', 'warning');
+                                    }
+                                } else {
+                                    console.log('Sale processed successfully:', result.receipt_number);
                                 }
                             } else {
                                 throw new Error(result.message || 'Sale processing failed');
@@ -1456,28 +1542,23 @@
                         };
                     },
 
-                    // Process sale offline
+                    // Process sale offline (only available when offline mode is enabled)
                     async processSaleOffline(saleData) {
-                        if (!this.offlineManager) {
+                        if (!this.offlineModeEnabled || !this.offlineManager) {
                             throw new Error('Offline processing not available');
                         }
 
                         return await this.offlineManager.processSaleOffline(saleData);
                     },
 
-                    // Update local product stock after sale
-                    updateLocalProductStock() {
-                        for (const cartItem of this.cart) {
-                            const product = this.allProducts.find(p => p.id === cartItem.id);
-                            if (product) {
-                                product.stock = Math.max(0, product.stock - cartItem.quantity);
-                            }
-                        }
-                    },
-
-                    // Update sync status
+                    // Update sync status (conditional based on offline mode)
                     async updateSyncStatus() {
-                        if (!this.offlineManager) return;
+                        if (!this.offlineModeEnabled || !this.offlineManager) {
+                            // No-op for development mode
+                            this.pendingSyncCount = 0;
+                            this.offlineSalesSummary = null;
+                            return;
+                        }
 
                         try {
                             this.pendingSyncCount = await this.offlineManager.getPendingOperationsCount();
@@ -1489,11 +1570,21 @@
 
                     // Toggle sync status display
                     toggleSyncStatus() {
+                        if (!this.offlineModeEnabled) {
+                            console.log('Sync status not available in development mode');
+                            return;
+                        }
+                        
                         this.showSyncStatus = !this.showSyncStatus;
                     },
 
-                    // Force sync now
+                    // Force sync now (conditional based on offline mode)
                     async forceSyncNow() {
+                        if (!this.offlineModeEnabled) {
+                            console.log('Sync not available in development mode');
+                            return;
+                        }
+                        
                         if (!this.isOnline || !this.offlineManager) {
                             this.showNotification('Cannot sync while offline', 'error');
                             return;
@@ -1510,13 +1601,23 @@
                         }
                     },
 
-                    // Show notification
+                    // Show notification (enhanced for offline mode)
                     showNotification(message, type = 'info') {
-                        if (this.offlineManager) {
+                        if (this.offlineModeEnabled && this.offlineManager) {
                             this.offlineManager.showNotification(message, type);
                         } else {
-                            // Fallback notification
+                            // Fallback notification for development
                             console.log(`${type.toUpperCase()}: ${message}`);
+                        }
+                    },
+
+                    // Update local product stock after sale
+                    updateLocalProductStock() {
+                        for (const cartItem of this.cart) {
+                            const product = this.allProducts.find(p => p.id === cartItem.id);
+                            if (product) {
+                                product.stock = Math.max(0, product.stock - cartItem.quantity);
+                            }
                         }
                     },
 
@@ -1606,8 +1707,10 @@
                         this.showReceipt = false;
                         this.resetSaleState();
                         
-                        // Update sync status after closing receipt
-                        this.updateSyncStatus();
+                        // Update sync status after closing receipt (only if offline mode enabled)
+                        if (this.offlineModeEnabled) {
+                            this.updateSyncStatus();
+                        }
                     },
 
                     // Print receipt

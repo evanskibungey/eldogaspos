@@ -30,13 +30,19 @@ class PosController extends Controller
     public function index()
     {
         try {
+            Log::info('POS Dashboard: Starting to load products');
+            
             // Get all active products with their categories
             $products = Product::with('category')
                 ->where('status', 'active')
                 ->get();
                 
+            Log::info('POS Dashboard: Found ' . $products->count() . ' active products');
+                
             // Get all categories for filtering
             $categories = Category::where('status', 'active')->get();
+            
+            Log::info('POS Dashboard: Found ' . $categories->count() . ' active categories');
                 
             // Format product data for frontend display
             $formattedProducts = $products->map(function ($product) {
@@ -55,6 +61,18 @@ class PosController extends Controller
                     'category_name' => $product->category ? $product->category->name : 'Uncategorized'
                 ];
             });
+            
+            // Add debugging info if no products found
+            if ($products->count() === 0) {
+                Log::warning('POS Dashboard: No active products found');
+                
+                // Check if there are any products at all
+                $totalProducts = Product::count();
+                $inactiveProducts = Product::where('status', 'inactive')->count();
+                $nullStatusProducts = Product::whereNull('status')->count();
+                
+                Log::info('POS Dashboard Debug: Total products=' . $totalProducts . ', Inactive=' . $inactiveProducts . ', Null status=' . $nullStatusProducts);
+            }
 
             return view('pos.dashboard', [
                 'products' => $formattedProducts,
@@ -62,6 +80,7 @@ class PosController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('Error in POS index: ' . $e->getMessage());
+            Log::error('POS index stack trace: ' . $e->getTraceAsString());
             return back()->with('error', 'Error loading products. Please try again.');
         }
     }
