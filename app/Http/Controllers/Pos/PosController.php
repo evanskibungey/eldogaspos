@@ -109,8 +109,9 @@ class PosController extends Controller
                 'cart_items.*.price' => 'required|numeric|min:0',
                 'payment_method' => 'required|in:cash,credit',
                 'customer_details' => 'required_if:payment_method,credit',
-                'customer_details.name' => 'required_if:payment_method,credit|string',
-                'customer_details.phone' => 'required_if:payment_method,credit|string'
+                'customer_details.customer_id' => 'nullable|exists:customers,id',
+                'customer_details.name' => 'required_if:payment_method,credit|required_without:customer_details.customer_id|nullable|string',
+                'customer_details.phone' => 'required_if:payment_method,credit|required_without:customer_details.customer_id|nullable|string'
             ]);
             Log::info('Request validated successfully');
 
@@ -189,6 +190,12 @@ class PosController extends Controller
                 'receipt_number' => $receiptNumber,
                 'message' => 'Sale completed successfully',
                 'sale_id' => $sale->id,
+                'customer' => $customer ? [
+                    'id' => $customer->id,
+                    'name' => $customer->name,
+                    'phone' => $customer->phone,
+                    'balance' => $customer->balance
+                ] : null,
                 'receipt_data' => [
                     'date' => now()->format('Y-m-d H:i:s'),
                     'items' => $saleItems, // Use the processed items with serial numbers
@@ -222,6 +229,18 @@ class PosController extends Controller
     private function handleCustomerCreation(array $customerDetails)
     {
         try {
+            // If customer_id is provided, use existing customer
+            if (!empty($customerDetails['customer_id'])) {
+                $customer = Customer::find($customerDetails['customer_id']);
+                
+                if (!$customer) {
+                    throw new \Exception('Selected customer not found');
+                }
+                
+                return $customer;
+            }
+            
+            // Otherwise, create or find customer by phone (existing behavior)
             return Customer::firstOrCreate(
                 ['phone' => $customerDetails['phone']],
                 [
@@ -230,8 +249,8 @@ class PosController extends Controller
                 ]
             );
         } catch (\Exception $e) {
-            Log::error('Error creating customer: ' . $e->getMessage());
-            throw new \Exception('Failed to create customer record');
+            Log::error('Error handling customer: ' . $e->getMessage());
+            throw new \Exception('Failed to process customer record');
         }
     }
 

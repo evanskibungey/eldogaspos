@@ -416,6 +416,16 @@
                         </button>
                     </div>
 
+                    <!-- Quick Stats - Replacing old dropdown -->
+                    <div class="flex items-center space-x-3">
+                        <a href="{{ route('pos.sales.history') }}" class="hidden md:flex items-center text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-100 transition-all">
+                            <svg class="w-4 h-4 mr-2 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                            <span class="font-medium">View Reports</span>
+                        </a>
+                    </div>
+
                     <!-- Categories dropdown - Improved design -->
                     <button @click="toggleCategories"
                         class="flex items-center text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-100 mx-2 transition-all relative">
@@ -895,7 +905,118 @@
 
                         <!-- Customer Details (for credit) -->
                         <div x-show="paymentMethod === 'credit'" x-transition class="mb-4">
-                            <div class="space-y-2">
+                            <!-- Customer Selection Mode Toggle -->
+                            <div class="mb-3">
+                                <div class="flex space-x-1 bg-gray-100 rounded-md p-1">
+                                    <button @click="customerMode = 'existing'; handleCustomerModeChange('existing')" 
+                                        class="flex-1 py-1.5 px-3 rounded text-xs font-medium transition-colors"
+                                        :class="customerMode === 'existing' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'">
+                                        Select Customer
+                                    </button>
+                                    <button @click="customerMode = 'new'; handleCustomerModeChange('new')" 
+                                        class="flex-1 py-1.5 px-3 rounded text-xs font-medium transition-colors"
+                                        :class="customerMode === 'new' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'">
+                                        Add New
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Existing Customer Selection -->
+                            <div x-show="customerMode === 'existing'" class="space-y-2">
+                                <!-- Customer Dropdown -->
+                                <div class="relative" x-data="{ open: false }">
+                                    <button @click="open = !open; if(open && !customersLoaded) loadCustomers()" 
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 shadow-sm bg-white text-left flex items-center justify-between">
+                                        <span x-text="selectedCustomer ? selectedCustomer.name + ' - ' + selectedCustomer.phone : 'Select a customer'" 
+                                            class="flex-1 truncate" :class="selectedCustomer ? 'text-gray-900' : 'text-gray-400'"></span>
+                                        <svg class="w-4 h-4 text-gray-400 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                        </svg>
+                                    </button>
+                                    
+                                    <!-- Dropdown Menu -->
+                                    <div x-show="open" @click.away="open = false" 
+                                        x-transition:enter="transition ease-out duration-100"
+                                        x-transition:enter-start="transform opacity-0 scale-95"
+                                        x-transition:enter-end="transform opacity-100 scale-100"
+                                        x-transition:leave="transition ease-in duration-75"
+                                        x-transition:leave-start="transform opacity-100 scale-100"
+                                        x-transition:leave-end="transform opacity-0 scale-95"
+                                        class="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                                        
+                                        <!-- Search Input -->
+                                        <div class="p-2 border-b">
+                                            <div class="flex space-x-1">
+                                                <input type="text" x-model="customerSearch" @input="searchCustomers" 
+                                                    placeholder="Search customers..." 
+                                                    class="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-orange-500">
+                                                <button @click="refreshCustomerList()" 
+                                                    class="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors flex items-center"
+                                                    title="Refresh customer list">
+                                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Loading State -->
+                                        <div x-show="loadingCustomers" class="p-3 text-center text-sm text-gray-500">
+                                            Loading customers...
+                                        </div>
+                                        
+                                        <!-- Customer List -->
+                                        <div x-show="!loadingCustomers">
+                                            <template x-if="filteredCustomers.length === 0">
+                                                <div class="p-3 text-center text-sm text-gray-500">
+                                                    No customers found
+                                                </div>
+                                            </template>
+                                            
+                                            <template x-for="customer in filteredCustomers" :key="customer.id">
+                                                <button @click="selectCustomer(customer); open = false" 
+                                                    class="w-full px-3 py-2 text-left hover:bg-orange-50 focus:bg-orange-50 focus:outline-none transition-colors border-b border-gray-100 last:border-b-0"
+                                                    :class="customer.id === recentlyAddedCustomerId ? 'bg-green-50 border-green-200' : ''">
+                                                    <div class="flex justify-between items-center">
+                                                        <div class="flex items-center">
+                                                            <div>
+                                                                <div class="flex items-center">
+                                                                    <span class="font-medium text-sm text-gray-900" x-text="customer.name"></span>
+                                                                    <span x-show="customer.id === recentlyAddedCustomerId" 
+                                                                        class="ml-2 px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded-full font-medium">
+                                                                        New
+                                                                    </span>
+                                                                </div>
+                                                                <div class="text-xs text-gray-500" x-text="customer.phone"></div>
+                                                            </div>
+                                                        </div>
+                                                        <div x-show="customer.balance > 0" class="text-xs font-medium">
+                                                            <span class="text-red-600" x-text="'KSh ' + customer.balance.toFixed(0)"></span>
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Selected Customer Info -->
+                                <div x-show="selectedCustomer" class="p-2 bg-orange-50 border border-orange-200 rounded text-xs">
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            <div class="font-medium text-orange-800" x-text="selectedCustomer?.name"></div>
+                                            <div class="text-orange-600" x-text="selectedCustomer?.phone"></div>
+                                        </div>
+                                        <div x-show="selectedCustomer?.balance > 0" class="text-right">
+                                            <div class="text-xs text-orange-600">Current Balance</div>
+                                            <div class="font-bold text-red-600" x-text="'KSh ' + selectedCustomer?.balance.toFixed(0)"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- New Customer Form -->
+                            <div x-show="customerMode === 'new'" class="space-y-2">
                                 <div class="relative">
                                     <input type="text" x-model="customerDetails.name" placeholder="Customer Name"
                                         class="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 shadow-sm">
@@ -1241,10 +1362,20 @@
                     currentCategory: null,
                     showCategoryDrawer: false,
                     paymentMethod: 'cash',
+                    customerMode: 'existing', // 'existing' or 'new'
                     customerDetails: {
+                        customer_id: null,
                         name: '',
                         phone: ''
                     },
+                    // Customer selection state
+                    selectedCustomer: null,
+                    customers: [],
+                    filteredCustomers: [],
+                    customerSearch: '',
+                    loadingCustomers: false,
+                    customersLoaded: false,
+                    recentlyAddedCustomerId: null, // Track recently added customer
                     showReceipt: false,
                     showError: false,
                     receiptNumber: '',
@@ -1302,8 +1433,12 @@
 
                         // Only require customer details for credit payment
                         if (this.paymentMethod === 'credit') {
-                            return this.customerDetails.name.trim() !== '' &&
-                                this.customerDetails.phone.trim() !== '';
+                            if (this.customerMode === 'existing') {
+                                return this.selectedCustomer !== null;
+                            } else {
+                                return this.customerDetails.name.trim() !== '' &&
+                                    this.customerDetails.phone.trim() !== '';
+                            }
                         }
 
                         return true;
@@ -1439,6 +1574,113 @@
                         this.isOnline = true;
                     },
 
+                    // Customer Management Methods
+                    async loadCustomers() {
+                        if (this.customersLoaded) return;
+                        
+                        this.loadingCustomers = true;
+                        try {
+                            const response = await fetch('/api/v1/customers', {
+                                headers: {
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
+                                }
+                            });
+                            
+                            if (response.ok) {
+                                const data = await response.json();
+                                this.customers = data.customers || [];
+                                this.filteredCustomers = this.customers;
+                                this.customersLoaded = true;
+                            } else {
+                                throw new Error('Failed to load customers');
+                            }
+                        } catch (error) {
+                            console.error('Error loading customers:', error);
+                            this.showNotification('Failed to load customers', 'error');
+                        } finally {
+                            this.loadingCustomers = false;
+                        }
+                    },
+
+                    searchCustomers() {
+                        if (!this.customerSearch.trim()) {
+                            this.filteredCustomers = this.customers;
+                            return;
+                        }
+                        
+                        const search = this.customerSearch.toLowerCase();
+                        this.filteredCustomers = this.customers.filter(customer => 
+                            customer.name.toLowerCase().includes(search) ||
+                            customer.phone.toLowerCase().includes(search)
+                        );
+                    },
+
+                    selectCustomer(customer) {
+                        this.selectedCustomer = customer;
+                        this.customerDetails.customer_id = customer.id;
+                        // Also populate name and phone for display purposes
+                        this.customerDetails.name = customer.name;
+                        this.customerDetails.phone = customer.phone;
+                    },
+
+                    clearCustomerSelection() {
+                        this.selectedCustomer = null;
+                        this.customerDetails.customer_id = null;
+                        this.customerDetails.name = '';
+                        this.customerDetails.phone = '';
+                        this.customerSearch = '';
+                    },
+
+                    // Add newly created customer to the local customer list
+                    async addNewCustomerToList(customer) {
+                        try {
+                            // Add to customers array if not already present
+                            const existingIndex = this.customers.findIndex(c => c.id === customer.id);
+                            if (existingIndex === -1) {
+                                this.customers.unshift(customer); // Add to beginning of list
+                                this.customers.sort((a, b) => a.name.localeCompare(b.name)); // Keep sorted
+                                
+                                // Show success notification
+                                this.showNotification(`Customer "${customer.name}" added successfully!`, 'success');
+                                
+                                // Mark as recently added
+                                this.recentlyAddedCustomerId = customer.id;
+                                
+                                // Clear the "new" indicator after 10 seconds
+                                setTimeout(() => {
+                                    this.recentlyAddedCustomerId = null;
+                                }, 10000);
+                            } else {
+                                // Update existing customer (in case balance changed)
+                                this.customers[existingIndex] = customer;
+                            }
+                            
+                            // Update filtered list
+                            this.searchCustomers();
+                            
+                            // Set as selected customer and switch to existing mode for future use
+                            this.selectedCustomer = customer;
+                            this.customerDetails.customer_id = customer.id;
+                            this.customerDetails.name = customer.name;
+                            this.customerDetails.phone = customer.phone;
+                            
+                            // Don't switch mode automatically - let user see what happened
+                            // this.customerMode = 'existing';
+                            
+                            console.log('New customer added to list:', customer.name);
+                        } catch (error) {
+                            console.error('Error adding customer to list:', error);
+                        }
+                    },
+
+                    // Refresh customer list from server
+                    async refreshCustomerList() {
+                        this.customersLoaded = false;
+                        this.customers = [];
+                        this.filteredCustomers = [];
+                        await this.loadCustomers();
+                    },
+
                     // Enhanced sale processing with conditional offline support
                     async processSale() {
                         if (!this.canCheckout) return;
@@ -1447,6 +1689,22 @@
 
                         try {
                             // Prepare sale data
+                            let customerDetails = null;
+                            if (this.paymentMethod === 'credit') {
+                                if (this.customerMode === 'existing' && this.selectedCustomer) {
+                                    customerDetails = {
+                                        customer_id: this.selectedCustomer.id,
+                                        name: this.selectedCustomer.name,
+                                        phone: this.selectedCustomer.phone
+                                    };
+                                } else {
+                                    customerDetails = {
+                                        name: this.customerDetails.name,
+                                        phone: this.customerDetails.phone
+                                    };
+                                }
+                            }
+
                             const saleData = {
                                 user_id: {{ auth()->id() }},
                                 cart_items: this.cart.map(item => ({
@@ -1457,7 +1715,7 @@
                                 })),
                                 total_amount: this.total,
                                 payment_method: this.paymentMethod,
-                                customer_details: this.paymentMethod === 'credit' ? this.customerDetails : null
+                                customer_details: customerDetails
                             };
 
                             let result;
@@ -1483,6 +1741,20 @@
 
                             if (result.success) {
                                 this.receiptNumber = result.receipt_number;
+                                
+                                // If we created a new customer, add them to our customer list
+                                if (this.paymentMethod === 'credit' && this.customerMode === 'new' && result.customer) {
+                                    await this.addNewCustomerToList(result.customer);
+                                } else if (this.paymentMethod === 'credit' && this.customerMode === 'existing' && this.selectedCustomer) {
+                                    // Update balance for existing customer after credit sale
+                                    this.selectedCustomer.balance = result.customer?.balance || this.selectedCustomer.balance;
+                                    // Update in customers list too
+                                    const customerIndex = this.customers.findIndex(c => c.id === this.selectedCustomer.id);
+                                    if (customerIndex !== -1) {
+                                        this.customers[customerIndex].balance = this.selectedCustomer.balance;
+                                    }
+                                }
+                                
                                 this.showReceipt = true;
                                 
                                 // Update local stock immediately
@@ -1683,7 +1955,10 @@
                     resetSaleState() {
                         this.cart = [];
                         this.paymentMethod = 'cash';
-                        this.customerDetails = { name: '', phone: '' };
+                        this.customerMode = 'existing';
+                        this.customerDetails = { customer_id: null, name: '', phone: '' };
+                        this.clearCustomerSelection();
+                        this.recentlyAddedCustomerId = null; // Clear new customer indicator
                         this.showReceipt = false;
                         this.showError = false;
                         this.errorMessage = '';
@@ -1736,6 +2011,18 @@
                         const categories = window.posCategories || [];
                         const category = categories.find(c => c.id === categoryId);
                         return category ? category.name : 'Unknown Category';
+                    },
+
+                    // Handle customer mode changes
+                    handleCustomerModeChange(newMode) {
+                        if (newMode === 'existing') {
+                            // Clear manual entry fields when switching to existing customer mode
+                            this.customerDetails.name = '';
+                            this.customerDetails.phone = '';
+                        } else if (newMode === 'new') {
+                            // Clear customer selection when switching to new customer mode
+                            this.clearCustomerSelection();
+                        }
                     }
                 }
             }

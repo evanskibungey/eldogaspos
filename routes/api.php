@@ -29,6 +29,13 @@ Route::prefix('v1')->group(function () {
         Route::post('/logout', [App\Http\Controllers\API\AuthController::class, 'logout']);
         Route::get('/user', [App\Http\Controllers\API\AuthController::class, 'user']);
         
+        // Customer endpoints
+        Route::prefix('customers')->group(function () {
+            Route::get('/', [App\Http\Controllers\Api\CustomerController::class, 'index']);
+            Route::get('/search', [App\Http\Controllers\Api\CustomerController::class, 'search']);
+            Route::get('/{id}', [App\Http\Controllers\Api\CustomerController::class, 'show']);
+        });
+        
         // More API endpoints will be added here in future phases
     });
     
@@ -40,5 +47,12 @@ Route::prefix('v1')->group(function () {
         Route::get('/sync-status', [App\Http\Controllers\Api\OfflineSyncController::class, 'getSyncStatus']);
         Route::get('/failed-syncs', [App\Http\Controllers\Api\OfflineSyncController::class, 'getFailedSyncs']);
         Route::post('/retry-sync', [App\Http\Controllers\Api\OfflineSyncController::class, 'retrySyncLog']);
+    });
+    
+    // Customer API routes (using web auth for POS integration)
+    Route::middleware('auth')->prefix('customers')->group(function () {
+        Route::get('/', [App\Http\Controllers\Api\CustomerController::class, 'index']);
+        Route::get('/search', [App\Http\Controllers\Api\CustomerController::class, 'search']);
+        Route::get('/{id}', [App\Http\Controllers\Api\CustomerController::class, 'show']);
     });
 });
