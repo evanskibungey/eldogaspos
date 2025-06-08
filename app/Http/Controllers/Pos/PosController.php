@@ -9,10 +9,12 @@ use App\Models\SaleItem;
 use App\Models\Customer;
 use App\Models\Category;
 use App\Models\Setting;
+use App\Models\CylinderTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Carbon\Carbon;
 
 class PosController extends Controller
 {
@@ -43,6 +45,9 @@ class PosController extends Controller
             $categories = Category::where('status', 'active')->get();
             
             Log::info('POS Dashboard: Found ' . $categories->count() . ' active categories');
+            
+            // Get cylinder statistics for POS dashboard
+            $cylinderStats = $this->getCylinderStatistics();
                 
             // Format product data for frontend display
             $formattedProducts = $products->map(function ($product) {
@@ -76,7 +81,8 @@ class PosController extends Controller
 
             return view('pos.dashboard', [
                 'products' => $formattedProducts,
-                'categories' => $categories
+                'categories' => $categories,
+                'cylinderStats' => $cylinderStats
             ]);
         } catch (\Exception $e) {
             Log::error('Error in POS index: ' . $e->getMessage());
@@ -414,5 +420,19 @@ class PosController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
         }
+    }
+    
+    /**
+     * Get cylinder transaction statistics for POS dashboard
+     */
+    private function getCylinderStatistics()
+    {
+        return [
+            'active_drop_offs' => CylinderTransaction::active()->dropOffs()->count(),
+            'active_advance_collections' => CylinderTransaction::active()->advanceCollections()->count(),
+            'today_completed' => CylinderTransaction::whereDate('collection_date', Carbon::today())
+                               ->orWhereDate('return_date', Carbon::today())
+                               ->count(),
+        ];
     }
 }

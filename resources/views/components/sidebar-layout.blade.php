@@ -184,6 +184,16 @@
                         <span>Credit Management</span>
                     </a>
 
+                    <!-- Cylinder Management -->
+                    <a href="{{ route('admin.cylinders.index') }}"
+                        class="group flex items-center px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-lg {{ request()->routeIs('admin.cylinders.*') ? 'bg-gray-800 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white' }}">
+                        <svg class="h-5 w-5 mr-3 {{ request()->routeIs('admin.cylinders.*') ? 'text-orange-400' : 'text-gray-400 group-hover:text-orange-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                        <span>Cylinder Management</span>
+                    </a>
+
                     <!-- INVENTORY SECTION -->
                     <div class="menu-separator"></div>
                     <div class="menu-section-title">Inventory</div>
@@ -425,6 +435,16 @@
                         </svg>
                         <span>Credit Management</span>
                     </a>
+
+                    <!-- Cylinder Management for Cashier -->
+                    <a href="{{ route('pos.cylinders.index') }}"
+                        class="group flex items-center px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-lg {{ request()->routeIs('pos.cylinders.*') ? 'bg-gray-800 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white' }}">
+                        <svg class="h-5 w-5 mr-3 {{ request()->routeIs('pos.cylinders.*') ? 'text-orange-400' : 'text-gray-400 group-hover:text-orange-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                        <span>Cylinder Management</span>
+                    </a>
                 </nav>
             @endif
         </div>
@@ -501,8 +521,12 @@
                                 Reports & Analytics
                             @elseif(request()->routeIs('admin.credits.*'))
                                 Credit Management
+                            @elseif(request()->routeIs('admin.cylinders.*'))
+                                Cylinder Management
                             @elseif(request()->routeIs('pos.sales.*'))
                                 Sales Management
+                            @elseif(request()->routeIs('pos.cylinders.*'))
+                                Cylinder Management
                             @else
                                 {{ config('app.name', 'EldoGas POS') }}
                             @endif

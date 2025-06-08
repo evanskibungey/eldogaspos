@@ -11,6 +11,7 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Customer;
 use App\Models\Setting;
+use App\Models\CylinderTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -118,6 +119,9 @@ class DashboardController extends Controller
 
         // Stock Value
         $totalStockValue = $this->getTotalStockValue();
+        
+        // Cylinder Statistics
+        $cylinderStats = $this->getCylinderStatistics();
 
         return view('admin.dashboard', compact(
             'stats',
@@ -136,7 +140,8 @@ class DashboardController extends Controller
             'lowStockThreshold',
             'taxPercentage',
             'companyName',
-            'totalStockValue'
+            'totalStockValue',
+            'cylinderStats'
         ));
     }
 
@@ -370,5 +375,22 @@ class DashboardController extends Controller
                 ->groupBy('payment_method')
                 ->get()
                 ->keyBy('payment_method');
+    }
+    
+    /**
+     * Get cylinder transaction statistics
+     */
+    private function getCylinderStatistics()
+    {
+        return [
+            'active_drop_offs' => CylinderTransaction::active()->dropOffs()->count(),
+            'active_advance_collections' => CylinderTransaction::active()->advanceCollections()->count(),
+            'pending_payments' => CylinderTransaction::active()->pending()->count(),
+            'today_completed' => CylinderTransaction::whereDate('collection_date', Carbon::today())
+                               ->orWhereDate('return_date', Carbon::today())
+                               ->count(),
+            'total_pending_amount' => CylinderTransaction::active()->pending()->sum('amount'),
+            'total_pending_deposits' => CylinderTransaction::active()->advanceCollections()->sum('deposit_amount'),
+        ];
     }
 }

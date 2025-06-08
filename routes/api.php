@@ -55,4 +55,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/search', [App\Http\Controllers\Api\CustomerController::class, 'search']);
         Route::get('/{id}', [App\Http\Controllers\Api\CustomerController::class, 'show']);
     });
+    
+    // Cylinder API routes for POS integration
+    Route::middleware('auth')->prefix('cylinders')->group(function () {
+        Route::get('/search-customers', [App\Http\Controllers\Pos\CylinderController::class, 'searchCustomers']);
+    });
 });

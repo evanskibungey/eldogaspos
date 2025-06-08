@@ -21,4 +21,14 @@ class Customer extends Model
     {
         return $this->hasMany(Sale::class);
     }
+
+    public function cylinderTransactions()
+    {
+        return $this->hasMany(CylinderTransaction::class);
+    }
+
+    public function activeCylinderTransactions()
+    {
+        return $this->hasMany(CylinderTransaction::class)->where('status', 'active');
+    }
 }

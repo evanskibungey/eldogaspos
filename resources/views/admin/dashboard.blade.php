@@ -28,6 +28,12 @@
                         </span>
                     </button>
 
+                    <a href="{{ route('admin.cylinders.index') }}" class="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg text-sm transition-colors duration-200">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                        Cylinder Management
+                    </a>
                     <a href="{{ route('admin.reports.sales') }}" class="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg text-sm transition-colors duration-200">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -183,6 +189,95 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Cylinder Management Overview -->
+            <div class="mb-8">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                    </svg>
+                    Cylinder Management
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                    <!-- Active Drop-offs -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow duration-200 border-l-4 border-blue-500">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500">Active Drop-offs</p>
+                                <p class="text-2xl font-semibold text-gray-900 mt-1">{{ $cylinderStats['active_drop_offs'] }}</p>
+                                <p class="text-sm text-blue-600 font-medium">Awaiting collection</p>
+                            </div>
+                            <div class="p-3 bg-blue-50 rounded-full">
+                                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m0 0l7-7 7 7z"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advance Collections -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow duration-200 border-l-4 border-purple-500">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500">Advance Collections</p>
+                                <p class="text-2xl font-semibold text-gray-900 mt-1">{{ $cylinderStats['active_advance_collections'] }}</p>
+                                <p class="text-sm text-purple-600 font-medium">Awaiting return</p>
+                            </div>
+                            <div class="p-3 bg-purple-50 rounded-full">
+                                <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m0 0l-7 7-7-7z"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pending Payments -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow duration-200 border-l-4 border-orange-500">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500">Pending Payments</p>
+                                <p class="text-2xl font-semibold text-gray-900 mt-1">{{ $cylinderStats['pending_payments'] }}</p>
+                                <p class="text-sm text-orange-600 font-medium">{{ $currencySymbol }} {{ number_format($cylinderStats['total_pending_amount'], 0) }}</p>
+                            </div>
+                            <div class="p-3 bg-orange-50 rounded-full">
+                                <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Today Completed -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow duration-200 border-l-4 border-green-500">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500">Today Completed</p>
+                                <p class="text-2xl font-semibold text-gray-900 mt-1">{{ $cylinderStats['today_completed'] }}</p>
+                                <p class="text-sm text-green-600 font-medium">Transactions finished</p>
+                            </div>
+                            <div class="p-3 bg-green-50 rounded-full">
+                                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex justify-between items-center">
+                    <p class="text-sm text-gray-600">
+                        @if($cylinderStats['total_pending_deposits'] > 0)
+                            Total deposits held: <span class="font-semibold text-green-600">{{ $currencySymbol }} {{ number_format($cylinderStats['total_pending_deposits'], 0) }}</span>
+                        @endif
+                    </p>
+                    <a href="{{ route('admin.cylinders.index') }}" class="text-sm text-purple-600 hover:text-purple-800 flex items-center">
+                        View all cylinder transactions
+                        <svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </a>
                 </div>
             </div>
 

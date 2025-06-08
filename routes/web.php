@@ -7,10 +7,12 @@ use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\StockMovementController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Admin\CylinderController as AdminCylinderController;
 use App\Http\Controllers\Pos\PosController;
 use App\Http\Controllers\Pos\SaleController;
 use App\Http\Controllers\Pos\InventoryController;
 use App\Http\Controllers\Pos\CreditController;
+use App\Http\Controllers\Pos\CylinderController as PosCylinderController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -81,6 +83,31 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/{customer}/payment', [CreditController::class, 'recordPayment'])->name('payment.store');
         });
         
+        // Cylinder Management
+        Route::prefix('cylinders')->name('cylinders.')->group(function () {
+            Route::get('/', [AdminCylinderController::class, 'index'])->name('index');
+            Route::get('/create', [AdminCylinderController::class, 'create'])->name('create');
+            Route::post('/', [AdminCylinderController::class, 'store'])->name('store');
+            Route::get('/{cylinder}', [AdminCylinderController::class, 'show'])->name('show');
+            Route::get('/{cylinder}/edit', [AdminCylinderController::class, 'edit'])->name('edit');
+            Route::put('/{cylinder}', [AdminCylinderController::class, 'update'])->name('update');
+            Route::post('/{cylinder}/complete', [AdminCylinderController::class, 'complete'])->name('complete');
+            Route::post('/{cylinder}/cancel', [AdminCylinderController::class, 'cancel'])->name('cancel');
+            Route::delete('/{cylinder}', [AdminCylinderController::class, 'destroy'])->name('destroy');
+        });
+        
+        // Customer Management
+        Route::prefix('customers')->name('customers.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Admin\CustomerController::class, 'index'])->name('index');
+            Route::get('/create', [\App\Http\Controllers\Admin\CustomerController::class, 'create'])->name('create');
+            Route::post('/', [\App\Http\Controllers\Admin\CustomerController::class, 'store'])->name('store');
+            Route::get('/{customer}', [\App\Http\Controllers\Admin\CustomerController::class, 'show'])->name('show');
+            Route::get('/{customer}/edit', [\App\Http\Controllers\Admin\CustomerController::class, 'edit'])->name('edit');
+            Route::put('/{customer}', [\App\Http\Controllers\Admin\CustomerController::class, 'update'])->name('update');
+            Route::delete('/{customer}', [\App\Http\Controllers\Admin\CustomerController::class, 'destroy'])->name('destroy');
+            Route::post('/{customer}/adjust-balance', [\App\Http\Controllers\Admin\CustomerController::class, 'adjustBalance'])->name('adjust-balance');
+        });
+        
         // Reports - Enhanced Reporting System
         Route::prefix('reports')->name('reports.')->group(function () {
             // Main Report Views
@@ -133,6 +160,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/{customer}', [CreditController::class, 'show'])->name('show');
             Route::get('/{customer}/payment', [CreditController::class, 'recordPaymentForm'])->name('payment.form');
             Route::post('/{customer}/payment', [CreditController::class, 'recordPayment'])->name('payment.store');
+        });
+        
+        // Cylinder Management
+        Route::prefix('cylinders')->name('cylinders.')->group(function () {
+            Route::get('/', [PosCylinderController::class, 'index'])->name('index');
+            Route::get('/create', [PosCylinderController::class, 'create'])->name('create');
+            Route::post('/', [PosCylinderController::class, 'store'])->name('store');
+            Route::get('/{cylinder}', [PosCylinderController::class, 'show'])->name('show');
+            Route::post('/{cylinder}/complete', [PosCylinderController::class, 'complete'])->name('complete');
+            Route::post('/{cylinder}/quick-complete', [PosCylinderController::class, 'quickComplete'])->name('quick-complete');
+            Route::post('/{cylinder}/quick-return', [PosCylinderController::class, 'quickReturn'])->name('quick-return');
+            Route::get('/search-customers', [PosCylinderController::class, 'searchCustomers'])->name('search-customers');
         });
         
         // Debug route
