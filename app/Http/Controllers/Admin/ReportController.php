@@ -83,6 +83,25 @@ class ReportController extends Controller
             return $sale->items->sum('quantity');
         });
         
+        // Calculate total profit
+        $totalProfit = $sales->sum(function ($sale) {
+            return $sale->items->sum(function ($item) {
+                $costPrice = $item->product ? $item->product->cost_price : 0;
+                return ($item->unit_price - $costPrice) * $item->quantity;
+            });
+        });
+        
+        // Calculate total cost
+        $totalCost = $sales->sum(function ($sale) {
+            return $sale->items->sum(function ($item) {
+                $costPrice = $item->product ? $item->product->cost_price : 0;
+                return $costPrice * $item->quantity;
+            });
+        });
+        
+        // Calculate profit margin percentage
+        $profitMargin = $totalRevenue > 0 ? ($totalProfit / $totalRevenue) * 100 : 0;
+        
         // Get sales by hour (for today) or by day (for other periods)
         $salesByPeriod = [];
         if ($dateRange === 'today' || $dateRange === 'yesterday') {
@@ -92,6 +111,16 @@ class ReportController extends Controller
             // Sales by day
             $salesByPeriod = $this->getSalesByDay($startDate, $endDate);
         }
+        
+        // Debug logging
+        \Log::info('Sales Report Debug:', [
+            'dateRange' => $dateRange,
+            'startDate' => $startDate->toDateTimeString(),
+            'endDate' => $endDate->toDateTimeString(),
+            'totalSales' => $totalSales,
+            'salesByPeriodCount' => $salesByPeriod->count(),
+            'salesByPeriodSample' => $salesByPeriod->take(3)->toArray()
+        ]);
         
         // Get top products
         $topProducts = $this->getTopProducts($startDate, $endDate, 10);
@@ -110,6 +139,9 @@ class ReportController extends Controller
             'totalSales', 
             'totalRevenue', 
             'totalItems',
+            'totalProfit',
+            'totalCost',
+            'profitMargin',
             'salesByPeriod',
             'topProducts',
             'topCategories',
@@ -118,22 +150,86 @@ class ReportController extends Controller
     }
     
     /**
+     * Debug endpoint for chart data
+     */
+    public function debugChart(Request $request)
+    {
+        $dateRange = $request->input('date_range', 'today');
+        $startDate = Carbon::today();
+        $endDate = Carbon::today()->endOfDay();
+        
+        // Set date range
+        switch ($dateRange) {
+            case 'today':
+                $startDate = Carbon::today();
+                $endDate = Carbon::today()->endOfDay();
+                break;
+            case 'yesterday':
+                $startDate = Carbon::yesterday();
+                $endDate = Carbon::yesterday()->endOfDay();
+                break;
+            case 'this_week':
+                $startDate = Carbon::now()->startOfWeek();
+                $endDate = Carbon::now()->endOfWeek();
+                break;
+        }
+        
+        // Get sales data
+        $salesByPeriod = ($dateRange === 'today' || $dateRange === 'yesterday') 
+            ? $this->getSalesByHour($startDate, $endDate)
+            : $this->getSalesByDay($startDate, $endDate);
+            
+        // Get all sales for reference
+        $allSales = Sale::whereBetween('created_at', [$startDate, $endDate])
+            ->where('status', '!=', 'voided')
+            ->get();
+            
+        return response()->json([
+            'dateRange' => $dateRange,
+            'startDate' => $startDate->toDateTimeString(),
+            'endDate' => $endDate->toDateTimeString(),
+            'salesByPeriod' => $salesByPeriod,
+            'salesByPeriodArray' => $salesByPeriod->toArray(),
+            'allSalesCount' => $allSales->count(),
+            'sampleSales' => $allSales->take(3)->toArray()
+        ]);
+    }
+    
+    /**
      * Get sales aggregated by hour
      */
     private function getSalesByHour($startDate, $endDate)
     {
-        // Using a database-agnostic way to extract the hour
-        return Sale::where('status', '!=', 'voided')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->select(
-                DB::raw('DATE_FORMAT(created_at, "%H") as hour'), 
-                DB::raw('COUNT(*) as count'), 
-                DB::raw('SUM(total_amount) as total')
-            )
-            ->groupBy(DB::raw('DATE_FORMAT(created_at, "%H")'))
-            ->orderBy('hour')
-            ->get()
-            ->keyBy('hour');
+        try {
+            // Using a database-agnostic way to extract the hour
+            $data = Sale::where('status', '!=', 'voided')
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->select(
+                    DB::raw('DATE_FORMAT(created_at, "%H") as hour'), 
+                    DB::raw('COUNT(*) as count'), 
+                    DB::raw('SUM(total_amount) as total')
+                )
+                ->groupBy(DB::raw('DATE_FORMAT(created_at, "%H")'))
+                ->orderBy('hour')
+                ->get()
+                ->keyBy('hour');
+                
+            // Fill missing hours with zero values
+            $result = [];
+            for ($hour = 0; $hour <= 23; $hour++) {
+                $hourKey = sprintf('%02d', $hour);
+                $result[$hourKey] = [
+                    'hour' => $hourKey,
+                    'count' => isset($data[$hourKey]) ? $data[$hourKey]->count : 0,
+                    'total' => isset($data[$hourKey]) ? $data[$hourKey]->total : 0
+                ];
+            }
+            
+            return collect($result);
+        } catch (\Exception $e) {
+            \Log::error('Error in getSalesByHour: ' . $e->getMessage());
+            return collect([]);
+        }
     }
     
     /**
@@ -141,18 +237,38 @@ class ReportController extends Controller
      */
     private function getSalesByDay($startDate, $endDate)
     {
-        // Using a database-agnostic way to extract the date
-        return Sale::where('status', '!=', 'voided')
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->select(
-                DB::raw('DATE(created_at) as date'), 
-                DB::raw('COUNT(*) as count'), 
-                DB::raw('SUM(total_amount) as total')
-            )
-            ->groupBy(DB::raw('DATE(created_at)'))
-            ->orderBy('date')
-            ->get()
-            ->keyBy('date');
+        try {
+            // Using a database-agnostic way to extract the date
+            $data = Sale::where('status', '!=', 'voided')
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->select(
+                    DB::raw('DATE(created_at) as date'), 
+                    DB::raw('COUNT(*) as count'), 
+                    DB::raw('SUM(total_amount) as total')
+                )
+                ->groupBy(DB::raw('DATE(created_at)'))
+                ->orderBy('date')
+                ->get()
+                ->keyBy('date');
+                
+            // Fill missing dates with zero values
+            $result = [];
+            $current = $startDate->copy();
+            while ($current <= $endDate) {
+                $dateKey = $current->format('Y-m-d');
+                $result[$dateKey] = [
+                    'date' => $dateKey,
+                    'count' => isset($data[$dateKey]) ? $data[$dateKey]->count : 0,
+                    'total' => isset($data[$dateKey]) ? $data[$dateKey]->total : 0
+                ];
+                $current->addDay();
+            }
+            
+            return collect($result);
+        } catch (\Exception $e) {
+            \Log::error('Error in getSalesByDay: ' . $e->getMessage());
+            return collect([]);
+        }
     }
     
     /**
@@ -168,13 +284,21 @@ class ReportController extends Controller
             ->select(
                 'products.id',
                 'products.name',
+                'products.cost_price',
                 DB::raw('SUM(sale_items.quantity) as total_quantity'),
-                DB::raw('SUM(sale_items.subtotal) as total_revenue')
+                DB::raw('SUM(sale_items.subtotal) as total_revenue'),
+                DB::raw('SUM((sale_items.unit_price - products.cost_price) * sale_items.quantity) as total_profit'),
+                DB::raw('SUM(products.cost_price * sale_items.quantity) as total_cost')
             )
-            ->groupBy('products.id', 'products.name')
+            ->groupBy('products.id', 'products.name', 'products.cost_price')
             ->orderByDesc('total_quantity')
             ->limit($limit)
-            ->get();
+            ->get()
+            ->map(function ($product) {
+                $product->profit_margin = $product->total_revenue > 0 ? 
+                    ($product->total_profit / $product->total_revenue) * 100 : 0;
+                return $product;
+            });
     }
     
     /**
@@ -192,12 +316,19 @@ class ReportController extends Controller
                 'categories.id',
                 'categories.name',
                 DB::raw('SUM(sale_items.quantity) as total_quantity'),
-                DB::raw('SUM(sale_items.subtotal) as total_revenue')
+                DB::raw('SUM(sale_items.subtotal) as total_revenue'),
+                DB::raw('SUM((sale_items.unit_price - products.cost_price) * sale_items.quantity) as total_profit'),
+                DB::raw('SUM(products.cost_price * sale_items.quantity) as total_cost')
             )
             ->groupBy('categories.id', 'categories.name')
             ->orderByDesc('total_quantity')
             ->limit($limit)
-            ->get();
+            ->get()
+            ->map(function ($category) {
+                $category->profit_margin = $category->total_revenue > 0 ? 
+                    ($category->total_profit / $category->total_revenue) * 100 : 0;
+                return $category;
+            });
     }
     
     /**
@@ -391,6 +522,21 @@ class ReportController extends Controller
         $data = [];
         
         foreach ($sales as $sale) {
+            // Calculate profit for this sale
+            $saleProfit = $sale->items->sum(function ($item) {
+                $costPrice = $item->product ? $item->product->cost_price : 0;
+                return ($item->unit_price - $costPrice) * $item->quantity;
+            });
+            
+            // Calculate cost for this sale
+            $saleCost = $sale->items->sum(function ($item) {
+                $costPrice = $item->product ? $item->product->cost_price : 0;
+                return $costPrice * $item->quantity;
+            });
+            
+            // Calculate profit margin
+            $profitMargin = $sale->total_amount > 0 ? ($saleProfit / $sale->total_amount) * 100 : 0;
+            
             $row = [
                 'Receipt Number' => $sale->receipt_number,
                 'Date' => $sale->created_at->format('Y-m-d H:i:s'),
@@ -399,6 +545,9 @@ class ReportController extends Controller
                 'Payment Method' => ucfirst($sale->payment_method),
                 'Payment Status' => ucfirst($sale->payment_status),
                 'Total Amount' => number_format($sale->total_amount, 2),
+                'Total Cost' => number_format($saleCost, 2),
+                'Total Profit' => number_format($saleProfit, 2),
+                'Profit Margin %' => number_format($profitMargin, 2),
                 'Status' => ucfirst($sale->status),
                 'Items' => $sale->items->sum('quantity'),
                 'Products' => $sale->items->count()
@@ -609,6 +758,79 @@ class ReportController extends Controller
                 }
             } else {
                 fputcsv($file, ['No stock movement data found']);
+            }
+            
+            fclose($file);
+        };
+        
+        return Response::stream($callback, 200, $headers);
+    }
+    
+    /**
+     * Export detailed sales report with profit per item to CSV
+     */
+    public function exportDetailedSales(Request $request)
+    {
+        $startDate = $request->input('start_date') ? Carbon::parse($request->input('start_date')) : Carbon::today()->subDays(30);
+        $endDate = $request->input('end_date') ? Carbon::parse($request->input('end_date'))->endOfDay() : Carbon::today()->endOfDay();
+        
+        $sales = Sale::with(['items.product', 'customer', 'user'])
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->where('status', '!=', 'voided')
+            ->orderBy('created_at', 'desc')
+            ->get();
+            
+        $csvData = [];
+        
+        foreach ($sales as $sale) {
+            foreach ($sale->items as $item) {
+                $costPrice = $item->product ? $item->product->cost_price : 0;
+                $itemProfit = ($item->unit_price - $costPrice) * $item->quantity;
+                $itemCost = $costPrice * $item->quantity;
+                $profitMargin = $item->subtotal > 0 ? ($itemProfit / $item->subtotal) * 100 : 0;
+                
+                $row = [
+                    'Receipt Number' => $sale->receipt_number,
+                    'Date' => $sale->created_at->format('Y-m-d H:i:s'),
+                    'Customer' => $sale->customer ? $sale->customer->name : 'N/A',
+                    'Cashier' => $sale->user ? $sale->user->name : 'N/A',
+                    'Product Name' => $item->product ? $item->product->name : 'Unknown Product',
+                    'SKU' => $item->product ? $item->product->sku : 'N/A',
+                    'Quantity' => $item->quantity,
+                    'Unit Price' => number_format($item->unit_price, 2),
+                    'Cost Price' => number_format($costPrice, 2),
+                    'Unit Profit' => number_format($item->unit_price - $costPrice, 2),
+                    'Item Revenue' => number_format($item->subtotal, 2),
+                    'Item Cost' => number_format($itemCost, 2),
+                    'Item Profit' => number_format($itemProfit, 2),
+                    'Profit Margin %' => number_format($profitMargin, 2),
+                    'Payment Method' => ucfirst($sale->payment_method),
+                    'Sale Status' => ucfirst($sale->status)
+                ];
+                
+                $csvData[] = $row;
+            }
+        }
+        
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="detailed_sales_report_' . now()->format('Y-m-d') . '.csv"',
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0'
+        ];
+        
+        $callback = function() use ($csvData) {
+            $file = fopen('php://output', 'w');
+            
+            if (!empty($csvData)) {
+                fputcsv($file, array_keys($csvData[0]));
+                
+                foreach ($csvData as $row) {
+                    fputcsv($file, $row);
+                }
+            } else {
+                fputcsv($file, ['No sales data found']);
             }
             
             fclose($file);

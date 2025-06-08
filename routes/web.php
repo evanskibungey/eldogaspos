@@ -91,10 +91,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
             
             // Report Exports
             Route::get('/sales/export', [ReportController::class, 'exportSales'])->name('sales.export');
+            Route::get('/sales/export-detailed', [ReportController::class, 'exportDetailedSales'])->name('sales.export-detailed');
             Route::get('/inventory/export', [ReportController::class, 'exportInventory'])->name('inventory.export');
             Route::get('/users/export', [ReportController::class, 'exportUsers'])->name('users.export');
             Route::get('/stock-movements/export', [ReportController::class, 'exportStockMovements'])
                 ->name('stock-movements.export');
+            
+            // Debug endpoint
+            Route::get('/debug-chart', [ReportController::class, 'debugChart'])->name('debug-chart');
         });
         
         // Settings
