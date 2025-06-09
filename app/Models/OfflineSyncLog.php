@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Carbon\Carbon;
 
 class OfflineSyncLog extends Model
 {
@@ -11,7 +12,7 @@ class OfflineSyncLog extends Model
 
     protected $fillable = [
         'offline_receipt_number',
-        'server_receipt_number', 
+        'server_receipt_number',
         'sale_id',
         'sync_status',
         'original_data',
@@ -27,16 +28,42 @@ class OfflineSyncLog extends Model
         'synced_at' => 'datetime'
     ];
 
-    public function sale()
+    /**
+     * Scope for pending sync logs
+     */
+    public function scopePending($query)
     {
-        return $this->belongsTo(Sale::class);
+        return $query->where('sync_status', 'pending');
     }
 
+    /**
+     * Scope for synced logs
+     */
+    public function scopeSynced($query)
+    {
+        return $query->where('sync_status', 'synced');
+    }
+
+    /**
+     * Scope for failed sync logs
+     */
+    public function scopeFailed($query)
+    {
+        return $query->where('sync_status', 'failed');
+    }
+
+    /**
+     * Increment sync attempts
+     */
     public function incrementSyncAttempts()
     {
         $this->increment('sync_attempts');
+        $this->save();
     }
 
+    /**
+     * Mark as synced
+     */
     public function markAsSynced($saleId, $serverReceiptNumber)
     {
         $this->update([
@@ -48,6 +75,9 @@ class OfflineSyncLog extends Model
         ]);
     }
 
+    /**
+     * Mark as failed
+     */
     public function markAsFailed($errorMessage)
     {
         $this->update([
@@ -56,18 +86,11 @@ class OfflineSyncLog extends Model
         ]);
     }
 
-    public function scopePending($query)
+    /**
+     * Relationship with sale
+     */
+    public function sale()
     {
-        return $query->where('sync_status', 'pending');
-    }
-
-    public function scopeFailed($query)
-    {
-        return $query->where('sync_status', 'failed');
-    }
-
-    public function scopeSynced($query)
-    {
-        return $query->where('sync_status', 'synced');
+        return $this->belongsTo(Sale::class);
     }
 }

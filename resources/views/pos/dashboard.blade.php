@@ -2,6 +2,11 @@
 <x-app-layout>
     <!-- CSRF Token for API calls -->
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    
+    @if(config('offline.enabled'))
+    <!-- Offline Mode Styles -->
+    <link rel="stylesheet" href="{{ asset('css/offline.css') }}">
+    @endif
 
     <!-- Enhanced Print Styles for 57mm thermal receipt -->
     <style>
@@ -345,6 +350,17 @@
         }
     </style>
 
+    <!-- Set offline mode configuration and data -->
+    <script>
+        window.offlineModeEnabled = {{ config('offline.enabled') ? 'true' : 'false' }};
+        window.posCategories = @json($categories ?? []);
+        window.cylinderStats = @json($cylinderStats ?? ['active_drop_offs' => 0, 'active_advance_collections' => 0]);
+        window.authUserId = {{ auth()->id() }};
+    </script>
+    
+    <!-- Include Alpine.js POS System -->
+    <script src="{{ asset('js/pos-system.js') }}"></script>
+    
     <div x-data="enhancedPosSystem()" x-cloak class="flex h-screen bg-gray-50">
         <!-- Main Content Area -->
         <div class="flex-1 flex flex-col overflow-x-hidden">
@@ -388,6 +404,7 @@
                     </div>
 
                     <!-- Connection Status & Sync Indicator -->
+                    @if(config('offline.enabled'))
                     <div class="flex items-center space-x-3 mr-3">
                         <!-- Connection Status -->
                         <div id="connection-status" 
@@ -415,6 +432,7 @@
                             </span>
                         </button>
                     </div>
+                    @endif
 
                     <!-- Quick Stats - Replacing old dropdown -->
                     <div class="flex items-center space-x-3">
@@ -504,6 +522,7 @@
                 </div>
             </div>
 
+            @if(config('offline.enabled'))
             <!-- Offline Mode Indicator -->
             <div x-show="!isOnline" class="offline-mode-indicator">
                 <div class="flex items-center">
@@ -513,7 +532,9 @@
                     <span class="font-medium">Offline Mode Active</span>
                 </div>
             </div>
+            @endif
 
+            @if(config('offline.enabled'))
             <!-- Sync Status Panel -->
             <div x-show="showSyncStatus" 
                  x-transition:enter="transition ease-out duration-200"
@@ -581,6 +602,7 @@
                     </div>
                 </div>
             </div>
+            @endif
 
             <!-- Main Content -->
             <div class="flex-1 flex">
@@ -670,6 +692,7 @@
                         <span class="text-sm bg-gray-100 px-3 py-1 rounded-full text-gray-600 font-medium" x-text="filteredProducts.length + ' items'"></span>
                     </div>
 
+                    @if(config('offline.enabled'))
                     <!-- Offline Stock Warning -->
                     <div x-show="!isOnline" class="offline-stock-warning">
                         <div class="offline-stock-warning-content">
@@ -682,6 +705,7 @@
                             </div>
                         </div>
                     </div>
+                    @endif
 
                     <!-- Enhanced Empty state -->
                     <div x-show="!isLoading && filteredProducts.length === 0"
@@ -705,10 +729,12 @@
                         class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                         <template x-for="product in filteredProducts" :key="product.id">
                             <div class="product-card bg-white rounded-lg shadow-sm border border-gray-100 flex flex-col overflow-hidden relative">
+                                @if(config('offline.enabled'))
                                 <!-- Offline Available Badge -->
                                 <div x-show="!isOnline" class="offline-available-badge">
                                     Offline
                                 </div>
+                                @endif
                                 
                                 <!-- Clickable Image Container -->
                                 <div class="image-container cursor-pointer" @click="addToCart(product)">
@@ -880,6 +906,7 @@
 
                     <!-- Payment Section - Always at the bottom -->
                     <div class="cart-payment-section">
+                        @if(config('offline.enabled'))
                         <!-- Offline Mode Warning -->
                         <div x-show="!isOnline" class="mb-3 p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-800">
                             <div class="flex items-center">
@@ -889,6 +916,7 @@
                                 <span>Sale will be processed offline</span>
                             </div>
                         </div>
+                        @endif
 
                         <!-- Payment Method Selection -->
                         <div class="mb-4">
@@ -1097,9 +1125,11 @@
                             Receipt
                         </h2>
                         <div class="flex items-center">
-                            <span class="text-sm bg-white text-orange-600 px-2 py-1 rounded-full font-medium">#<span x-text="receiptNumber"></span></span>
+                        <span class="text-sm bg-white text-orange-600 px-2 py-1 rounded-full font-medium">#<span x-text="receiptNumber"></span></span>
+                        @if(config('offline.enabled'))
                             <span x-show="!isOnline" class="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">Offline</span>
-                        </div>
+                                @endif
+                            </div>
                     </div>
                 </div>
 
@@ -1191,7 +1221,9 @@
                     <div class="text-center text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
                         <p class="font-semibold text-gray-700">Thank you for your business!</p>
                         <p class="mt-1">Keep this receipt for any returns or exchanges.</p>
+                        @if(config('offline.enabled'))
                         <p x-show="!isOnline" class="mt-2 text-orange-600 font-medium">Transaction processed offline</p>
+                        @endif
                     </div>
                 </div>
 

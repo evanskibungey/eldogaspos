@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
@@ -81,7 +81,8 @@ class OfflineSyncController extends Controller
                 'customer_details.name' => 'required_if:payment_method,credit|string',
                 'customer_details.phone' => 'required_if:payment_method,credit|string',
                 'offline_receipt_number' => 'required|string',
-                'offline_created_at' => 'required|date'
+                'offline_created_at' => 'required|date',
+                'user_id' => 'nullable|exists:users,id'
             ]);
 
             DB::beginTransaction();
@@ -132,9 +133,16 @@ class OfflineSyncController extends Controller
                 // Calculate total amount
                 $totalAmount = $this->calculateTotalAmount($request->cart_items);
 
+                // Get user ID from the request or use the authenticated user
+                $userId = $request->input('user_id', auth()->id());
+                
+                if (!$userId) {
+                    throw new \Exception('User ID is required for offline sync');
+                }
+                
                 // Create sale record with offline sync flags
                 $sale = Sale::create([
-                    'user_id' => auth()->id(),
+                    'user_id' => $userId,
                     'customer_id' => $customer->id,
                     'receipt_number' => $serverReceiptNumber,
                     'total_amount' => $totalAmount,

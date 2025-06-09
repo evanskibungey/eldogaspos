@@ -23,7 +23,10 @@ class ServiceWorkerManager {
 
     async registerServiceWorker() {
         try {
-            this.registration = await navigator.serviceWorker.register('/sw.js', {
+            // Get the base URL for the application
+            const baseUrl = window.location.origin + (window.location.pathname.includes('/public') ? window.location.pathname.split('/public')[0] + '/public' : '');
+            
+            this.registration = await navigator.serviceWorker.register(baseUrl + '/sw.js', {
                 scope: '/'
             });
 
@@ -186,15 +189,18 @@ class ServiceWorkerManager {
 // Initialize the service worker manager
 let serviceWorkerManager;
 
-// Initialize when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
+// Only initialize if offline mode is enabled
+if (window.offlineModeEnabled) {
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            serviceWorkerManager = new ServiceWorkerManager();
+            window.serviceWorkerManager = serviceWorkerManager;
+        });
+    } else {
         serviceWorkerManager = new ServiceWorkerManager();
         window.serviceWorkerManager = serviceWorkerManager;
-    });
-} else {
-    serviceWorkerManager = new ServiceWorkerManager();
-    window.serviceWorkerManager = serviceWorkerManager;
+    }
 }
 
 // Export for global access

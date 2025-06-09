@@ -1,1 +1,133 @@
-<?php\n\nnamespace App\\Console\\Commands;\n\nuse Illuminate\\Console\\Command;\n\nclass ToggleOfflineMode extends Command\n{\n    protected $signature = 'pos:offline-mode {mode : The mode to set (enable|disable|status)}';\n    protected $description = 'Toggle offline mode for the POS system';\n\n    public function handle()\n    {\n        $mode = $this->argument('mode');\n        $envFile = base_path('.env');\n\n        switch ($mode) {\n            case 'enable':\n                $this->updateEnvFile($envFile, 'OFFLINE_MODE_ENABLED', 'true');\n                $this->info('✅ Offline mode ENABLED');\n                $this->info('📱 The POS system will now work offline and sync when online');\n                $this->info('🔄 Please clear cache: php artisan config:clear');\n                break;\n\n            case 'disable':\n                $this->updateEnvFile($envFile, 'OFFLINE_MODE_ENABLED', 'false');\n                $this->info('✅ Offline mode DISABLED');\n                $this->info('💻 The POS system will only work online (good for development)');\n                $this->info('🔄 Please clear cache: php artisan config:clear');\n                break;\n\n            case 'status':\n                $this->showStatus();\n                break;\n\n            default:\n                $this->error('Invalid mode. Use: enable, disable, or status');\n                return 1;\n        }\n\n        return 0;\n    }\n\n    private function updateEnvFile($envFile, $key, $value)\n    {\n        if (!file_exists($envFile)) {\n            $this->error('.env file not found');\n            return;\n        }\n\n        $envContent = file_get_contents($envFile);\n        $pattern = \"/^{$key}=.*$/m\";\n        \n        if (preg_match($pattern, $envContent)) {\n            // Update existing line\n            $envContent = preg_replace($pattern, \"{$key}={$value}\", $envContent);\n        } else {\n            // Add new line\n            $envContent .= \"\\n{$key}={$value}\\n\";\n        }\n\n        file_put_contents($envFile, $envContent);\n    }\n\n    private function showStatus()\n    {\n        $enabled = config('offline.enabled', false);\n        \n        $this->info('🔍 Current Offline Mode Status:');\n        $this->line('');\n        \n        if ($enabled) {\n            $this->info('📱 Status: ENABLED');\n            $this->info('🌐 Mode: Production (works offline + online)');\n            $this->info('💾 Features: Offline sales, background sync, offline storage');\n        } else {\n            $this->info('💻 Status: DISABLED');\n            $this->info('🌐 Mode: Development (online only)');\n            $this->info('💾 Features: Online sales only, no offline capabilities');\n        }\n        \n        $this->line('');\n        $this->info('Available commands:');\n        $this->line('  php artisan pos:offline-mode enable   # Enable for production');\n        $this->line('  php artisan pos:offline-mode disable  # Disable for development');\n        \n        // Show configuration details if enabled\n        if ($enabled) {\n            $this->line('');\n            $this->info('📋 Configuration:');\n            $this->line('  Database: ' . config('offline.database.name'));\n            $this->line('  Sync Interval: ' . (config('offline.sync.auto_sync_interval') / 1000) . ' seconds');\n            $this->line('  Max Retries: ' . config('offline.sync.max_retry_attempts'));\n        }\n    }\n}
+<?php
+
+namespace App\Console\Commands;
+
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\File;
+
+class ToggleOfflineMode extends Command
+{
+    /**
+     * The name and signature of the console command.
+     *
+     * @var string
+     */
+    protected $signature = 'pos:offline-mode {action : enable, disable, or status}';
+
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Toggle offline mode for the POS system';
+
+    /**
+     * Execute the console command.
+     *
+     * @return int
+     */
+    public function handle()
+    {
+        $action = $this->argument('action');
+        $envPath = base_path('.env');
+        $envContent = File::get($envPath);
+
+        switch ($action) {
+            case 'enable':
+                $this->enableOfflineMode($envPath, $envContent);
+                break;
+            case 'disable':
+                $this->disableOfflineMode($envPath, $envContent);
+                break;
+            case 'status':
+                $this->showStatus();
+                break;
+            default:
+                $this->error('Invalid action. Use enable, disable, or status.');
+                return 1;
+        }
+
+        return 0;
+    }
+
+    private function enableOfflineMode($envPath, $envContent)
+    {
+        if (strpos($envContent, 'OFFLINE_MODE_ENABLED=') !== false) {
+            $envContent = preg_replace('/OFFLINE_MODE_ENABLED=.*/', 'OFFLINE_MODE_ENABLED=true', $envContent);
+        } else {
+            $envContent .= "\n\n# Offline Mode Configuration\nOFFLINE_MODE_ENABLED=true\n";
+        }
+
+        File::put($envPath, $envContent);
+        
+        $this->info('✅ Offline mode has been ENABLED');
+        $this->info('Run "php artisan config:clear" to apply changes');
+        $this->newLine();
+        $this->warn('📱 Production Mode Features:');
+        $this->line('- Full offline functionality');
+        $this->line('- Works without internet connection');
+        $this->line('- Automatic background sync when online');
+        $this->line('- Offline sales storage');
+        $this->line('- Connection status monitoring');
+        $this->line('- Manual sync controls');
+    }
+
+    private function disableOfflineMode($envPath, $envContent)
+    {
+        if (strpos($envContent, 'OFFLINE_MODE_ENABLED=') !== false) {
+            $envContent = preg_replace('/OFFLINE_MODE_ENABLED=.*/', 'OFFLINE_MODE_ENABLED=false', $envContent);
+        } else {
+            $envContent .= "\n\n# Offline Mode Configuration\nOFFLINE_MODE_ENABLED=false\n";
+        }
+
+        File::put($envPath, $envContent);
+        
+        $this->info('✅ Offline mode has been DISABLED');
+        $this->info('Run "php artisan config:clear" to apply changes');
+        $this->newLine();
+        $this->warn('💻 Development Mode Features:');
+        $this->line('- Works online-only (no offline complexity)');
+        $this->line('- No "You\'re Offline" messages');
+        $this->line('- All POS features work normally');
+        $this->line('- Sales processing works online');
+        $this->line('- No offline capabilities');
+        $this->line('- No offline storage or sync');
+    }
+
+    private function showStatus()
+    {
+        $isEnabled = config('offline.enabled', false);
+        
+        $this->newLine();
+        $this->info('🔍 Current Offline Mode Status');
+        $this->line('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        
+        if ($isEnabled) {
+            $this->info('Status: ENABLED ✅');
+            $this->newLine();
+            $this->line('📱 Active Features:');
+            $this->line('- Full offline functionality');
+            $this->line('- Automatic background sync');
+            $this->line('- Offline sales storage');
+            $this->line('- Connection monitoring');
+        } else {
+            $this->warn('Status: DISABLED ❌');
+            $this->newLine();
+            $this->line('💻 Active Features:');
+            $this->line('- Online-only mode');
+            $this->line('- No offline capabilities');
+            $this->line('- Standard POS functionality');
+        }
+        
+        $this->newLine();
+        $this->line('Database Configuration:');
+        $this->line('- Name: ' . config('offline.database.name'));
+        $this->line('- Version: ' . config('offline.database.version'));
+        
+        $this->newLine();
+        $this->line('Sync Configuration:');
+        $this->line('- Auto sync interval: ' . (config('offline.sync.auto_sync_interval') / 1000) . ' seconds');
+        $this->line('- Max retry attempts: ' . config('offline.sync.max_retry_attempts'));
+        $this->line('- Retry delay: ' . (config('offline.sync.retry_delay') / 1000) . ' seconds');
+    }
+}

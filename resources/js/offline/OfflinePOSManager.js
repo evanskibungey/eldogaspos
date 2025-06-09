@@ -166,6 +166,11 @@ class OfflinePOSManager {
      */
     async processSaleOffline(saleData) {
         try {
+            // Validate required data
+            if (!saleData.user_id) {
+                throw new Error('User ID is required for offline sales');
+            }
+            
             // Generate local receipt number
             const receiptNumber = await this.generateOfflineReceiptNumber();
             
@@ -406,7 +411,8 @@ class OfflinePOSManager {
                 payment_method: operation.data.payment_method,
                 customer_details: operation.data.customer_data,
                 offline_receipt_number: operation.data.receipt_number,
-                offline_created_at: operation.data.created_at
+                offline_created_at: operation.data.created_at,
+                user_id: operation.data.user_id  // Include user ID in sync
             })
         });
 

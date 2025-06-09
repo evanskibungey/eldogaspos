@@ -41,12 +41,12 @@ Route::prefix('v1')->group(function () {
     
     // Offline POS Sync routes (using web auth for now)
     Route::middleware('auth')->prefix('offline')->group(function () {
-        Route::get('/products', [App\Http\Controllers\Api\OfflineSyncController::class, 'getProductsForOffline']);
-        Route::post('/sync-sale', [App\Http\Controllers\Api\OfflineSyncController::class, 'syncOfflineSale']);
-        Route::post('/batch-sync-sales', [App\Http\Controllers\Api\OfflineSyncController::class, 'batchSyncOfflineSales']);
-        Route::get('/sync-status', [App\Http\Controllers\Api\OfflineSyncController::class, 'getSyncStatus']);
-        Route::get('/failed-syncs', [App\Http\Controllers\Api\OfflineSyncController::class, 'getFailedSyncs']);
-        Route::post('/retry-sync', [App\Http\Controllers\Api\OfflineSyncController::class, 'retrySyncLog']);
+        Route::get('/products', [App\Http\Controllers\API\OfflineSyncController::class, 'getProductsForOffline']);
+        Route::post('/sync-sale', [App\Http\Controllers\API\OfflineSyncController::class, 'syncOfflineSale']);
+        Route::post('/batch-sync-sales', [App\Http\Controllers\API\OfflineSyncController::class, 'batchSyncOfflineSales']);
+        Route::get('/sync-status', [App\Http\Controllers\API\OfflineSyncController::class, 'getSyncStatus']);
+        Route::get('/failed-syncs', [App\Http\Controllers\API\OfflineSyncController::class, 'getFailedSyncs']);
+        Route::post('/retry-sync', [App\Http\Controllers\API\OfflineSyncController::class, 'retrySyncLog']);
     });
     
     // Customer API routes (using web auth for POS integration)
