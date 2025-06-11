@@ -188,6 +188,62 @@ class CustomerController extends Controller
     }
 
     /**
+     * Quick customer creation API endpoint for forms
+     */
+    public function quickStore(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'phone' => 'required|string|max:20|unique:customers,phone',
+        ]);
+
+        try {
+            $customer = Customer::create([
+                'name' => $request->name,
+                'phone' => $request->phone,
+                'credit_limit' => 0,
+                'balance' => 0,
+                'status' => 'active',
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'customer' => [
+                    'id' => $customer->id,
+                    'name' => $customer->name,
+                    'phone' => $customer->phone,
+                    'balance' => $customer->balance,
+                ],
+                'message' => 'Customer created successfully!'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create customer: ' . $e->getMessage()
+            ], 422);
+        }
+    }
+
+    /**
+     * Search customers API endpoint
+     */
+    public function searchCustomers(Request $request)
+    {
+        $search = $request->get('q', '');
+        
+        $customers = Customer::where('status', 'active')
+            ->where(function($query) use ($search) {
+                $query->where('name', 'like', "%{$search}%")
+                      ->orWhere('phone', 'like', "%{$search}%");
+            })
+            ->limit(10)
+            ->get(['id', 'name', 'phone', 'balance']);
+
+        return response()->json($customers);
+    }
+
+    /**
      * Adjust customer balance
      */
     public function adjustBalance(Request $request, Customer $customer)

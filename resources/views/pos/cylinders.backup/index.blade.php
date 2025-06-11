@@ -4,10 +4,10 @@
             <!-- Header -->
             <div class="flex justify-between items-center mb-6">
                 <div>
-                    <h2 class="text-2xl font-semibold text-gray-800">Cylinder Transactions</h2>
+                    <h2 class="text-2xl font-semibold text-gray-800">Cylinder Management</h2>
                     <p class="text-sm text-gray-500 mt-1">Manage customer cylinder drop-offs and collections</p>
                 </div>
-                <a href="{{ route('pos.cylinders.create') }}" 
+                <a href="{{ route('admin.cylinders.create') }}" 
                    class="inline-flex items-center px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg text-sm transition-colors duration-200">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -17,13 +17,12 @@
             </div>
 
             <!-- Quick Stats -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
                 <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
                     <div class="flex items-center justify-between">
                         <div>
                             <p class="text-sm font-medium text-gray-500">Active Drop-offs</p>
                             <p class="text-2xl font-semibold text-blue-600">{{ $stats['active_drop_offs'] }}</p>
-                            <p class="text-xs text-gray-500">Waiting for collection</p>
                         </div>
                         <div class="p-2 bg-blue-50 rounded-lg">
                             <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -38,7 +37,6 @@
                         <div>
                             <p class="text-sm font-medium text-gray-500">Advance Collections</p>
                             <p class="text-2xl font-semibold text-purple-600">{{ $stats['active_advance_collections'] }}</p>
-                            <p class="text-xs text-gray-500">Waiting for return</p>
                         </div>
                         <div class="p-2 bg-purple-50 rounded-lg">
                             <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -51,13 +49,40 @@
                 <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
                     <div class="flex items-center justify-between">
                         <div>
-                            <p class="text-sm font-medium text-gray-500">Today Completed</p>
-                            <p class="text-2xl font-semibold text-green-600">{{ $stats['today_completed'] }}</p>
-                            <p class="text-xs text-gray-500">Transactions finished</p>
+                            <p class="text-sm font-medium text-gray-500">Pending Payments</p>
+                            <p class="text-2xl font-semibold text-orange-600">{{ $stats['pending_payments'] }}</p>
+                        </div>
+                        <div class="p-2 bg-orange-50 rounded-lg">
+                            <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Pending Amount</p>
+                            <p class="text-lg font-semibold text-red-600">KSh {{ number_format($stats['total_pending_amount'], 0) }}</p>
+                        </div>
+                        <div class="p-2 bg-red-50 rounded-lg">
+                            <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Pending Deposits</p>
+                            <p class="text-lg font-semibold text-green-600">KSh {{ number_format($stats['total_pending_deposits'], 0) }}</p>
                         </div>
                         <div class="p-2 bg-green-50 rounded-lg">
                             <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2"/>
                             </svg>
                         </div>
                     </div>
@@ -66,11 +91,20 @@
 
             <!-- Filters -->
             <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-6">
-                <form method="GET" action="{{ route('pos.cylinders.index') }}" class="flex flex-wrap gap-4">
+                <form method="GET" action="{{ route('admin.cylinders.index') }}" class="flex flex-wrap gap-4">
                     <div class="flex-1 min-w-64">
                         <input type="text" name="search" value="{{ request('search') }}" 
                                placeholder="Search by customer name, phone, or reference..." 
                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500">
+                    </div>
+                    
+                    <div>
+                        <select name="status" class="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500">
+                            <option value="">All Status</option>
+                            <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
+                            <option value="completed" {{ request('status') === 'completed' ? 'selected' : '' }}>Completed</option>
+                            <option value="cancelled" {{ request('status') === 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                        </select>
                     </div>
                     
                     <div>
@@ -82,10 +116,10 @@
                     </div>
                     
                     <div>
-                        <select name="status" class="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500">
-                            <option value="">Active Only</option>
-                            <option value="active" {{ request('status') === 'active' ? 'selected' : '' }}>Active</option>
-                            <option value="completed" {{ request('status') === 'completed' ? 'selected' : '' }}>Completed</option>
+                        <select name="payment_status" class="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-orange-500">
+                            <option value="">All Payments</option>
+                            <option value="paid" {{ request('payment_status') === 'paid' ? 'selected' : '' }}>Paid</option>
+                            <option value="pending" {{ request('payment_status') === 'pending' ? 'selected' : '' }}>Pending</option>
                         </select>
                     </div>
                     
@@ -93,8 +127,8 @@
                         Filter
                     </button>
                     
-                    @if(request()->hasAny(['search', 'status', 'type']))
-                        <a href="{{ route('pos.cylinders.index') }}" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md transition-colors">
+                    @if(request()->hasAny(['search', 'status', 'type', 'payment_status']))
+                        <a href="{{ route('admin.cylinders.index') }}" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md transition-colors">
                             Clear
                         </a>
                     @endif
@@ -113,7 +147,7 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Waiting</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
@@ -122,7 +156,7 @@
                                 <tr class="hover:bg-gray-50 transition-colors">
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="text-sm font-medium text-gray-900">{{ $transaction->reference_number }}</div>
-                                        <div class="text-xs text-gray-500">{{ $transaction->drop_off_date->format('M d, g:i A') }}</div>
+                                        <div class="text-xs text-gray-500">{{ $transaction->getDaysWaiting() }} days ago</div>
                                     </td>
                                     
                                     <td class="px-6 py-4 whitespace-nowrap">
@@ -137,46 +171,53 @@
                                     
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $transaction->getTransactionTypeBadgeColor() }}">
-                                            {{ $transaction->isDropOff() ? 'Drop-off' : 'Advance' }}
+                                            {{ $transaction->isDropOff() ? 'Drop-off' : 'Advance Collection' }}
                                         </span>
                                     </td>
                                     
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="text-sm text-gray-900">KSh {{ number_format($transaction->amount, 0) }}</div>
                                         @if($transaction->deposit_amount > 0)
-                                            <div class="text-xs text-orange-600">+ KSh {{ number_format($transaction->deposit_amount, 0) }}</div>
+                                            <div class="text-xs text-gray-500">+ KSh {{ number_format($transaction->deposit_amount, 0) }} deposit</div>
                                         @endif
                                     </td>
                                     
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $transaction->getPaymentStatusBadgeColor() }}">
-                                            {{ ucfirst($transaction->payment_status) }}
-                                        </span>
+                                        <div class="flex flex-col space-y-1">
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $transaction->getStatusBadgeColor() }}">
+                                                {{ ucfirst($transaction->status) }}
+                                            </span>
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $transaction->getPaymentStatusBadgeColor() }}">
+                                                {{ ucfirst($transaction->payment_status) }}
+                                            </span>
+                                        </div>
                                     </td>
                                     
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {{ $transaction->getDaysWaiting() }} days
+                                        <div>{{ $transaction->drop_off_date->format('M d, Y') }}</div>
+                                        <div class="text-xs">{{ $transaction->drop_off_date->format('h:i A') }}</div>
                                     </td>
                                     
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <div class="flex items-center space-x-2">
-                                            <a href="{{ route('pos.cylinders.show', $transaction) }}" 
+                                            <a href="{{ route('admin.cylinders.show', $transaction) }}" 
                                                class="text-blue-600 hover:text-blue-900 transition-colors">
                                                 View
                                             </a>
                                             
                                             @if($transaction->isActive())
-                                                @if($transaction->isDropOff())
-                                                    <button onclick="quickComplete({{ $transaction->id }})" 
-                                                            class="text-green-600 hover:text-green-900 transition-colors">
+                                                <a href="{{ route('admin.cylinders.edit', $transaction) }}" 
+                                                   class="text-orange-600 hover:text-orange-900 transition-colors">
+                                                    Edit
+                                                </a>
+                                                
+                                                <form method="POST" action="{{ route('admin.cylinders.complete', $transaction) }}" 
+                                                      class="inline" onsubmit="return confirm('Complete this transaction?')">
+                                                    @csrf
+                                                    <button type="submit" class="text-green-600 hover:text-green-900 transition-colors">
                                                         Complete
                                                     </button>
-                                                @else
-                                                    <button onclick="quickReturn({{ $transaction->id }})" 
-                                                            class="text-purple-600 hover:text-purple-900 transition-colors">
-                                                        Return
-                                                    </button>
-                                                @endif
+                                                </form>
                                             @endif
                                         </div>
                                     </td>
@@ -206,86 +247,4 @@
             </div>
         </div>
     </div>
-
-    <!-- Success/Error Messages -->
-    <div id="notification" class="fixed top-4 right-4 z-50" style="display: none;">
-        <div class="bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg">
-            <span id="notification-message"></span>
-        </div>
-    </div>
-
-    <script>
-        // Quick complete for drop-offs
-        function quickComplete(transactionId) {
-            if (confirm('Mark this cylinder as collected?')) {
-                fetch(`/pos/cylinders/${transactionId}/quick-complete`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                        'Content-Type': 'application/json',
-                    },
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showNotification(data.message, 'success');
-                        setTimeout(() => location.reload(), 1500);
-                    } else {
-                        showNotification(data.error || 'An error occurred', 'error');
-                    }
-                })
-                .catch(error => {
-                    showNotification('An error occurred', 'error');
-                });
-            }
-        }
-
-        // Quick return for advance collections
-        function quickReturn(transactionId) {
-            if (confirm('Process empty cylinder return and refund deposit?')) {
-                fetch(`/pos/cylinders/${transactionId}/quick-return`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                        'Content-Type': 'application/json',
-                    },
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showNotification(data.message, 'success');
-                        setTimeout(() => location.reload(), 1500);
-                    } else {
-                        showNotification(data.error || 'An error occurred', 'error');
-                    }
-                })
-                .catch(error => {
-                    showNotification('An error occurred', 'error');
-                });
-            }
-        }
-
-        // Show notification
-        function showNotification(message, type = 'success') {
-            const notification = document.getElementById('notification');
-            const messageElement = document.getElementById('notification-message');
-            
-            messageElement.textContent = message;
-            
-            // Update colors based on type
-            const container = notification.querySelector('div');
-            if (type === 'error') {
-                container.className = 'bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg';
-            } else {
-                container.className = 'bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg';
-            }
-            
-            notification.style.display = 'block';
-            
-            // Auto hide after 3 seconds
-            setTimeout(() => {
-                notification.style.display = 'none';
-            }, 3000);
-        }
-    </script>
 </x-app-layout>

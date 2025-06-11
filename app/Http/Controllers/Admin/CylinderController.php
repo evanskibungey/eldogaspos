@@ -16,8 +16,13 @@ class CylinderController extends Controller
         $query = CylinderTransaction::with(['customer', 'createdBy', 'completedBy'])
             ->orderBy('created_at', 'desc');
 
-        // Filter by status
-        if ($request->filled('status')) {
+        // Detect if this is being called from POS routes
+        $isPosContext = $request->route() && str_starts_with($request->route()->getName(), 'pos.');
+        
+        // Filter active transactions by default for POS context
+        if ($isPosContext && !$request->filled('status')) {
+            $query->where('status', 'active');
+        } else if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
@@ -41,16 +46,26 @@ class CylinderController extends Controller
             });
         }
 
-        $transactions = $query->paginate(20);
+        // Adjust pagination based on context
+        $perPage = $isPosContext ? 15 : 20;
+        $transactions = $query->paginate($perPage);
 
-        // Get summary statistics
-        $stats = [
-            'active_drop_offs' => CylinderTransaction::active()->dropOffs()->count(),
-            'active_advance_collections' => CylinderTransaction::active()->advanceCollections()->count(),
-            'pending_payments' => CylinderTransaction::active()->pending()->count(),
-            'total_pending_amount' => CylinderTransaction::active()->pending()->sum('amount'),
-            'total_pending_deposits' => CylinderTransaction::active()->advanceCollections()->sum('deposit_amount'),
-        ];
+        // Get summary statistics (different for POS vs Admin)
+        if ($isPosContext) {
+            $stats = [
+                'active_drop_offs' => CylinderTransaction::active()->dropOffs()->count(),
+                'active_advance_collections' => CylinderTransaction::active()->advanceCollections()->count(),
+                'today_completed' => CylinderTransaction::whereDate('collection_date', today())->count(),
+            ];
+        } else {
+            $stats = [
+                'active_drop_offs' => CylinderTransaction::active()->dropOffs()->count(),
+                'active_advance_collections' => CylinderTransaction::active()->advanceCollections()->count(),
+                'pending_payments' => CylinderTransaction::active()->pending()->count(),
+                'total_pending_amount' => CylinderTransaction::active()->pending()->sum('amount'),
+                'total_pending_deposits' => CylinderTransaction::active()->advanceCollections()->sum('deposit_amount'),
+            ];
+        }
 
         return view('admin.cylinders.index', compact('transactions', 'stats'));
     }
@@ -118,7 +133,11 @@ class CylinderController extends Controller
 
             DB::commit();
 
-            return redirect()->route('admin.cylinders.show', $transaction)
+            // Detect if this is being called from POS routes
+            $isPosContext = $request->route() && str_starts_with($request->route()->getName(), 'pos.');
+            $showRoute = $isPosContext ? 'pos.cylinders.show' : 'admin.cylinders.show';
+
+            return redirect()->route($showRoute, $transaction)
                 ->with('success', 'Cylinder transaction created successfully!');
 
         } catch (\Exception $e) {
@@ -269,7 +288,11 @@ class CylinderController extends Controller
                 ? 'Customer has collected the refilled cylinder!' 
                 : 'Empty cylinder returned and deposit refunded!';
 
-            return redirect()->route('admin.cylinders.index')
+            // Detect if this is being called from POS routes
+            $isPosContext = $request->route() && str_starts_with($request->route()->getName(), 'pos.');
+            $indexRoute = $isPosContext ? 'pos.cylinders.index' : 'admin.cylinders.index';
+
+            return redirect()->route($indexRoute)
                 ->with('success', $message);
 
         } catch (\Exception $e) {
@@ -337,5 +360,94 @@ class CylinderController extends Controller
             DB::rollBack();
             return back()->withErrors(['error' => 'Failed to delete transaction: ' . $e->getMessage()]);
         }
+    }
+
+    // POS-specific methods
+    
+    // Quick action for completing drop-off collections
+    public function quickComplete(CylinderTransaction $cylinder)
+    {
+        if (!$cylinder->isDropOff() || $cylinder->isCompleted()) {
+            return response()->json(['error' => 'Invalid transaction for quick completion'], 400);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $cylinder->update([
+                'status' => 'completed',
+                'collection_date' => now(),
+                'completed_by' => Auth::id(),
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Cylinder collection completed successfully!'
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['error' => 'Failed to complete transaction'], 500);
+        }
+    }
+
+    // Quick action for processing return of advance collection
+    public function quickReturn(CylinderTransaction $cylinder)
+    {
+        if (!$cylinder->isAdvanceCollection() || $cylinder->isCompleted()) {
+            return response()->json(['error' => 'Invalid transaction for quick return'], 400);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $updates = [
+                'status' => 'completed',
+                'return_date' => now(),
+                'completed_by' => Auth::id(),
+            ];
+
+            // Process refund of deposit
+            if ($cylinder->deposit_amount > 0) {
+                $cylinder->customer->decrement('balance', $cylinder->deposit_amount);
+            }
+
+            // If payment was pending, mark as paid since empty cylinder is returned
+            if ($cylinder->isPending()) {
+                $updates['payment_status'] = 'paid';
+                $cylinder->customer->decrement('balance', $cylinder->amount);
+            }
+
+            $cylinder->update($updates);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Empty cylinder return processed successfully!'
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['error' => 'Failed to process return'], 500);
+        }
+    }
+
+    // API endpoint for searching customers
+    public function searchCustomers(Request $request)
+    {
+        $search = $request->get('q', '');
+        
+        $customers = Customer::where('status', 'active')
+            ->where(function($query) use ($search) {
+                $query->where('name', 'like', "%{$search}%")
+                      ->orWhere('phone', 'like', "%{$search}%");
+            })
+            ->limit(10)
+            ->get(['id', 'name', 'phone', 'balance']);
+
+        return response()->json($customers);
     }
 }

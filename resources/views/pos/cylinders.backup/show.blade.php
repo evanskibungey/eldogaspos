@@ -1,12 +1,3 @@
-@php
-    $currentRoute = request()->route()->getName();
-    $isPosContext = str_starts_with($currentRoute, 'pos.');
-    $indexRoute = $isPosContext ? 'pos.cylinders.index' : 'admin.cylinders.index';
-    $editRoute = 'admin.cylinders.edit'; // Edit is admin-only
-    $completeRoute = $isPosContext ? 'pos.cylinders.complete' : 'admin.cylinders.complete';
-    $cancelRoute = 'admin.cylinders.cancel'; // Cancel is admin-only
-@endphp
-
 <x-app-layout>
     <div class="py-6 bg-gray-50">
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -17,8 +8,8 @@
                     <p class="text-sm text-gray-500 mt-1">{{ $cylinder->reference_number }}</p>
                 </div>
                 <div class="flex space-x-3">
-                    @if($cylinder->isActive() && !$isPosContext)
-                        <a href="{{ route($editRoute, $cylinder) }}" 
+                    @if($cylinder->isActive())
+                        <a href="{{ route('admin.cylinders.edit', $cylinder) }}" 
                            class="inline-flex items-center px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg text-sm transition-colors duration-200">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
@@ -26,7 +17,7 @@
                             Edit
                         </a>
                     @endif
-                    <a href="{{ route($indexRoute) }}" 
+                    <a href="{{ route('admin.cylinders.index') }}" 
                        class="inline-flex items-center px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg text-sm transition-colors duration-200">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
@@ -260,12 +251,10 @@
                         </div>
 
                         <div class="mt-4 pt-4 border-t border-gray-200">
-                            @if(!$isPosContext)
-                                <a href="{{ route('admin.customers.show', $cylinder->customer) }}" 
-                                   class="text-sm text-blue-600 hover:text-blue-900 transition-colors">
-                                    View customer profile →
-                                </a>
-                            @endif
+                            <a href="{{ route('admin.customers.show', $cylinder->customer) }}" 
+                               class="text-sm text-blue-600 hover:text-blue-900 transition-colors">
+                                View customer profile →
+                            </a>
                         </div>
                     </div>
 
@@ -276,7 +265,7 @@
                             
                             <div class="space-y-3">
                                 <!-- Complete Transaction -->
-                                <form method="POST" action="{{ route($completeRoute, $cylinder) }}" 
+                                <form method="POST" action="{{ route('admin.cylinders.complete', $cylinder) }}" 
                                       onsubmit="return confirm('Are you sure you want to complete this transaction?')">
                                     @csrf
                                     <button type="submit" 
@@ -288,20 +277,18 @@
                                     </button>
                                 </form>
 
-                                <!-- Cancel Transaction (Admin only) -->
-                                @if(!$isPosContext)
-                                    <form method="POST" action="{{ route($cancelRoute, $cylinder) }}" 
-                                          onsubmit="return confirm('Are you sure you want to cancel this transaction? This action cannot be undone.')">
-                                        @csrf
-                                        <button type="submit" 
-                                                class="w-full inline-flex justify-center items-center px-4 py-2 border border-red-300 rounded-md shadow-sm text-sm font-medium text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">
-                                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                            </svg>
-                                            Cancel Transaction
-                                        </button>
-                                    </form>
-                                @endif
+                                <!-- Cancel Transaction -->
+                                <form method="POST" action="{{ route('admin.cylinders.cancel', $cylinder) }}" 
+                                      onsubmit="return confirm('Are you sure you want to cancel this transaction? This action cannot be undone.')">
+                                    @csrf
+                                    <button type="submit" 
+                                            class="w-full inline-flex justify-center items-center px-4 py-2 border border-red-300 rounded-md shadow-sm text-sm font-medium text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">
+                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                        </svg>
+                                        Cancel Transaction
+                                    </button>
+                                </form>
                             </div>
                         </div>
                     @endif

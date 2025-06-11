@@ -12,7 +12,7 @@ use App\Http\Controllers\Pos\PosController;
 use App\Http\Controllers\Pos\SaleController;
 use App\Http\Controllers\Pos\InventoryController;
 use App\Http\Controllers\Pos\CreditController;
-use App\Http\Controllers\Pos\CylinderController as PosCylinderController;
+
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -94,6 +94,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/{cylinder}/complete', [AdminCylinderController::class, 'complete'])->name('complete');
             Route::post('/{cylinder}/cancel', [AdminCylinderController::class, 'cancel'])->name('cancel');
             Route::delete('/{cylinder}', [AdminCylinderController::class, 'destroy'])->name('destroy');
+            Route::get('/search-customers', [AdminCylinderController::class, 'searchCustomers'])->name('search-customers');
         });
         
         // Customer Management
@@ -101,6 +102,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/', [\App\Http\Controllers\Admin\CustomerController::class, 'index'])->name('index');
             Route::get('/create', [\App\Http\Controllers\Admin\CustomerController::class, 'create'])->name('create');
             Route::post('/', [\App\Http\Controllers\Admin\CustomerController::class, 'store'])->name('store');
+            Route::post('/quick-create', [\App\Http\Controllers\Admin\CustomerController::class, 'quickStore'])->name('quick-store');
+            Route::get('/search', [\App\Http\Controllers\Admin\CustomerController::class, 'searchCustomers'])->name('search');
             Route::get('/{customer}', [\App\Http\Controllers\Admin\CustomerController::class, 'show'])->name('show');
             Route::get('/{customer}/edit', [\App\Http\Controllers\Admin\CustomerController::class, 'edit'])->name('edit');
             Route::put('/{customer}', [\App\Http\Controllers\Admin\CustomerController::class, 'update'])->name('update');
@@ -162,16 +165,22 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/{customer}/payment', [CreditController::class, 'recordPayment'])->name('payment.store');
         });
         
-        // Cylinder Management
+        // Cylinder Management - Redirect to Admin Controller
         Route::prefix('cylinders')->name('cylinders.')->group(function () {
-            Route::get('/', [PosCylinderController::class, 'index'])->name('index');
-            Route::get('/create', [PosCylinderController::class, 'create'])->name('create');
-            Route::post('/', [PosCylinderController::class, 'store'])->name('store');
-            Route::get('/{cylinder}', [PosCylinderController::class, 'show'])->name('show');
-            Route::post('/{cylinder}/complete', [PosCylinderController::class, 'complete'])->name('complete');
-            Route::post('/{cylinder}/quick-complete', [PosCylinderController::class, 'quickComplete'])->name('quick-complete');
-            Route::post('/{cylinder}/quick-return', [PosCylinderController::class, 'quickReturn'])->name('quick-return');
-            Route::get('/search-customers', [PosCylinderController::class, 'searchCustomers'])->name('search-customers');
+            Route::get('/', [AdminCylinderController::class, 'index'])->name('index');
+            Route::get('/create', [AdminCylinderController::class, 'create'])->name('create');
+            Route::post('/', [AdminCylinderController::class, 'store'])->name('store');
+            Route::get('/{cylinder}', [AdminCylinderController::class, 'show'])->name('show');
+            Route::post('/{cylinder}/complete', [AdminCylinderController::class, 'complete'])->name('complete');
+            Route::post('/{cylinder}/quick-complete', [AdminCylinderController::class, 'quickComplete'])->name('quick-complete');
+            Route::post('/{cylinder}/quick-return', [AdminCylinderController::class, 'quickReturn'])->name('quick-return');
+            Route::get('/search-customers', [AdminCylinderController::class, 'searchCustomers'])->name('search-customers');
+        });
+        
+        // Customer API endpoints for POS
+        Route::prefix('customers')->name('customers.')->group(function () {
+            Route::post('/quick-create', [\App\Http\Controllers\Admin\CustomerController::class, 'quickStore'])->name('quick-store');
+            Route::get('/search', [\App\Http\Controllers\Admin\CustomerController::class, 'searchCustomers'])->name('search');
         });
         
         // Debug route

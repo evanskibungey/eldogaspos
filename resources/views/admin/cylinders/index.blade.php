@@ -7,7 +7,14 @@
                     <h2 class="text-2xl font-semibold text-gray-800">Cylinder Management</h2>
                     <p class="text-sm text-gray-500 mt-1">Manage customer cylinder drop-offs and collections</p>
                 </div>
-                <a href="{{ route('admin.cylinders.create') }}" 
+@php
+    $currentRoute = request()->route()->getName();
+    $isPosContext = str_starts_with($currentRoute, 'pos.');
+    $createRoute = $isPosContext ? 'pos.cylinders.create' : 'admin.cylinders.create';
+    $indexRoute = $isPosContext ? 'pos.cylinders.index' : 'admin.cylinders.index';
+@endphp
+
+                <a href="{{ route($createRoute) }}" 
                    class="inline-flex items-center px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg text-sm transition-colors duration-200">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -17,7 +24,7 @@
             </div>
 
             <!-- Quick Stats -->
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-{{ $isPosContext ? '3' : '5' }} gap-4 mb-6">
                 <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
                     <div class="flex items-center justify-between">
                         <div>
@@ -46,52 +53,68 @@
                     </div>
                 </div>
 
-                <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-gray-500">Pending Payments</p>
-                            <p class="text-2xl font-semibold text-orange-600">{{ $stats['pending_payments'] }}</p>
-                        </div>
-                        <div class="p-2 bg-orange-50 rounded-lg">
-                            <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/>
-                            </svg>
+@if($isPosContext)
+                    <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500">Today Completed</p>
+                                <p class="text-2xl font-semibold text-green-600">{{ $stats['today_completed'] }}</p>
+                            </div>
+                            <div class="p-2 bg-green-50 rounded-lg">
+                                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                            </div>
                         </div>
                     </div>
-                </div>
+@else
+                    <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500">Pending Payments</p>
+                                <p class="text-2xl font-semibold text-orange-600">{{ $stats['pending_payments'] }}</p>
+                            </div>
+                            <div class="p-2 bg-orange-50 rounded-lg">
+                                <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
 
-                <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-gray-500">Pending Amount</p>
-                            <p class="text-lg font-semibold text-red-600">KSh {{ number_format($stats['total_pending_amount'], 0) }}</p>
-                        </div>
-                        <div class="p-2 bg-red-50 rounded-lg">
-                            <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/>
-                            </svg>
+                    <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500">Pending Amount</p>
+                                <p class="text-lg font-semibold text-red-600">KSh {{ number_format($stats['total_pending_amount'], 0) }}</p>
+                            </div>
+                            <div class="p-2 bg-red-50 rounded-lg">
+                                <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/>
+                                </svg>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-gray-500">Pending Deposits</p>
-                            <p class="text-lg font-semibold text-green-600">KSh {{ number_format($stats['total_pending_deposits'], 0) }}</p>
-                        </div>
-                        <div class="p-2 bg-green-50 rounded-lg">
-                            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2"/>
-                            </svg>
+                    <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500">Pending Deposits</p>
+                                <p class="text-lg font-semibold text-green-600">KSh {{ number_format($stats['total_pending_deposits'], 0) }}</p>
+                            </div>
+                            <div class="p-2 bg-green-50 rounded-lg">
+                                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2"/>
+                                </svg>
+                            </div>
                         </div>
                     </div>
-                </div>
+@endif
             </div>
 
             <!-- Filters -->
             <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-6">
-                <form method="GET" action="{{ route('admin.cylinders.index') }}" class="flex flex-wrap gap-4">
+                <form method="GET" action="{{ route($indexRoute) }}" class="flex flex-wrap gap-4">
                     <div class="flex-1 min-w-64">
                         <input type="text" name="search" value="{{ request('search') }}" 
                                placeholder="Search by customer name, phone, or reference..." 
@@ -128,7 +151,7 @@
                     </button>
                     
                     @if(request()->hasAny(['search', 'status', 'type', 'payment_status']))
-                        <a href="{{ route('admin.cylinders.index') }}" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md transition-colors">
+                        <a href="{{ route($indexRoute) }}" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md transition-colors">
                             Clear
                         </a>
                     @endif
@@ -200,18 +223,20 @@
                                     
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <div class="flex items-center space-x-2">
-                                            <a href="{{ route('admin.cylinders.show', $transaction) }}" 
+                                            <a href="{{ route($isPosContext ? 'pos.cylinders.show' : 'admin.cylinders.show', $transaction) }}" 
                                                class="text-blue-600 hover:text-blue-900 transition-colors">
                                                 View
                                             </a>
                                             
                                             @if($transaction->isActive())
-                                                <a href="{{ route('admin.cylinders.edit', $transaction) }}" 
-                                                   class="text-orange-600 hover:text-orange-900 transition-colors">
-                                                    Edit
-                                                </a>
+                                                @if(!$isPosContext)
+                                                    <a href="{{ route('admin.cylinders.edit', $transaction) }}" 
+                                                       class="text-orange-600 hover:text-orange-900 transition-colors">
+                                                        Edit
+                                                    </a>
+                                                @endif
                                                 
-                                                <form method="POST" action="{{ route('admin.cylinders.complete', $transaction) }}" 
+                                                <form method="POST" action="{{ route($isPosContext ? 'pos.cylinders.complete' : 'admin.cylinders.complete', $transaction) }}" 
                                                       class="inline" onsubmit="return confirm('Complete this transaction?')">
                                                     @csrf
                                                     <button type="submit" class="text-green-600 hover:text-green-900 transition-colors">
