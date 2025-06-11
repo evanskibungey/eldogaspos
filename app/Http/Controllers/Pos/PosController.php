@@ -108,18 +108,38 @@ class PosController extends Controller
         try {
             // Validate the request
             Log::info('Validating request');
-            $validated = $request->validate([
-                'cart_items' => 'required|array',
+            // Validate basic request structure first
+            $basicValidation = $request->validate([
+                'cart_items' => 'required|array|min:1',
                 'cart_items.*.id' => 'required|exists:products,id',
                 'cart_items.*.quantity' => 'required|integer|min:1',
                 'cart_items.*.price' => 'required|numeric|min:0',
+                'cart_items.*.serial_number' => 'nullable|string|max:255',
                 'payment_method' => 'required|in:cash,credit',
-                'customer_details' => 'required_if:payment_method,credit',
-                'customer_details.customer_id' => 'nullable|exists:customers,id',
-                'customer_details.name' => 'required_if:payment_method,credit|required_without:customer_details.customer_id|nullable|string',
-                'customer_details.phone' => 'required_if:payment_method,credit|required_without:customer_details.customer_id|nullable|string'
             ]);
+            
+            // Additional validation for credit payments
+            if ($request->payment_method === 'credit') {
+                $request->validate([
+                    'customer_details' => 'required|array',
+                    'customer_details.customer_id' => 'nullable|exists:customers,id',
+                    'customer_details.name' => 'required_without:customer_details.customer_id|string|max:255',
+                    'customer_details.phone' => 'required_without:customer_details.customer_id|string|max:20'
+                ]);
+            }
             Log::info('Request validated successfully');
+
+            // Pre-validate stock availability before starting transaction
+            foreach ($request->cart_items as $item) {
+                $product = Product::find($item['id']);
+                if (!$product) {
+                    throw new \Exception("Product with ID {$item['id']} not found");
+                }
+                if ($product->stock < $item['quantity']) {
+                    throw new \Exception("Insufficient stock for {$product->name}. Available: {$product->stock}, Requested: {$item['quantity']}");
+                }
+            }
+            Log::info('Stock availability pre-check passed');
 
             DB::beginTransaction();
             Log::info('DB transaction started');
@@ -219,15 +239,38 @@ class PosController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Validation error',
-                'errors' => $e->errors()
+                'errors' => $e->errors(),
+                'error_type' => 'validation'
+            ], 422);
+        } catch (\Illuminate\Database\QueryException $e) {
+            DB::rollBack();
+            Log::error('Database error in POS sale: ' . $e->getMessage());
+            Log::error('SQL Error Code: ' . $e->getCode());
+            return response()->json([
+                'success' => false,
+                'message' => 'Database error occurred while processing the sale. Please try again.',
+                'error_type' => 'database',
+                'error_code' => $e->getCode()
             ], 422);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error in POS sale: ' . $e->getMessage());
             Log::error('Error in POS sale stack trace: ' . $e->getTraceAsString());
+            
+            // Provide more user-friendly error messages
+            $userMessage = $e->getMessage();
+            if (str_contains($e->getMessage(), 'Insufficient stock')) {
+                $userMessage = $e->getMessage();
+            } elseif (str_contains($e->getMessage(), 'not found')) {
+                $userMessage = 'One or more products in your cart are no longer available.';
+            } else {
+                $userMessage = 'An unexpected error occurred while processing the sale. Please try again.';
+            }
+            
             return response()->json([
                 'success' => false,
-                'message' => 'An error occurred while processing the sale: ' . $e->getMessage()
+                'message' => $userMessage,
+                'error_type' => 'general'
             ], 500);
         }
     }
@@ -312,7 +355,13 @@ class PosController extends Controller
 
             try {
                 // Use the serial number from the item if available, otherwise use it from the product
-                $serialNumber = isset($item['serial_number']) ? $item['serial_number'] : (isset($product->serial_number) ? $product->serial_number : null);
+                // If neither has a serial number, leave it null (field is now nullable)
+                $serialNumber = null;
+                if (isset($item['serial_number']) && !empty($item['serial_number'])) {
+                    $serialNumber = $item['serial_number'];
+                } elseif (isset($product->serial_number) && !empty($product->serial_number)) {
+                    $serialNumber = $product->serial_number;
+                }
 
                 SaleItem::create([
                     'sale_id' => $saleId,

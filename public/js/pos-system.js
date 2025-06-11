@@ -13,6 +13,8 @@ function enhancedPosSystem() {
         isLoading: false,
         isProcessing: false,
         showReceipt: false,
+        showError: false,
+        errorMessage: '',
         receiptNumber: '',
         subtotal: 0,
         total: 0,
@@ -34,6 +36,7 @@ function enhancedPosSystem() {
         pendingSyncCount: 0,
         showSyncStatus: false,
         offlineSalesSummary: null,
+        _initialized: false,
         
         // Initialize component
         init() {
@@ -67,6 +70,7 @@ function enhancedPosSystem() {
                 });
             }
             
+            this._initialized = true;
             console.log('POS system initialized successfully');
         },
 
@@ -301,7 +305,7 @@ function enhancedPosSystem() {
                 if (this.paymentMethod === 'credit') {
                     if (this.customerMode === 'existing' && this.selectedCustomer) {
                         saleData.customer_details = {
-                            id: this.selectedCustomer.id,
+                            customer_id: this.selectedCustomer.id,  // Use customer_id instead of id
                             name: this.selectedCustomer.name,
                             phone: this.selectedCustomer.phone
                         };
@@ -315,7 +319,7 @@ function enhancedPosSystem() {
                 // Check if we're online or offline mode is disabled
                 if (this.isOnline || !window.offlineModeEnabled) {
                     // Process sale online
-                    const response = await fetch('/pos/process-sale', {
+                    const response = await fetch('/pos/sales', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -328,7 +332,8 @@ function enhancedPosSystem() {
                         result = await response.json();
                         this.receiptNumber = result.receipt_number;
                     } else {
-                        throw new Error('Failed to process sale');
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Failed to process sale');
                     }
                 } else {
                     // Process sale offline
@@ -353,7 +358,14 @@ function enhancedPosSystem() {
                 
             } catch (error) {
                 console.error('Error processing sale:', error);
-                this.showNotification('Failed to process sale. Please try again.', 'error');
+                
+                // Show detailed error in modal if available
+                if (this.showError !== undefined) {
+                    this.errorMessage = error.message || 'Failed to process sale. Please try again.';
+                    this.showError = true;
+                } else {
+                    this.showNotification(error.message || 'Failed to process sale. Please try again.', 'error');
+                }
             } finally {
                 this.isProcessing = false;
             }
@@ -367,6 +379,15 @@ function enhancedPosSystem() {
             this.selectedCustomer = null;
             this.customerMode = 'existing';
             this.calculateTotal();
+        },
+        
+        // Reset sale state
+        resetSaleState() {
+            this.resetCart();
+            this.showReceipt = false;
+            this.showError = false;
+            this.errorMessage = '';
+            this.receiptNumber = '';
         },
 
         // Close receipt
