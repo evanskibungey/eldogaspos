@@ -25,7 +25,10 @@ class CreditController extends Controller
         // Calculate total credit amount
         $totalCredit = Customer::where('balance', '>', 0)->sum('balance');
         
-        return view('pos.credits.index', compact('customers', 'totalCredit'));
+        // Get currency symbol from settings
+        $currencySymbol = config('settings.currency_symbol', 'KES');
+        
+        return view('pos.credits.index', compact('customers', 'totalCredit', 'currencySymbol'));
     }
     
     /**
@@ -45,7 +48,10 @@ class CreditController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
         
-        return view('pos.credits.show', compact('customer', 'creditSales', 'payments'));
+        // Get currency symbol from settings
+        $currencySymbol = config('settings.currency_symbol', 'KES');
+        
+        return view('pos.credits.show', compact('customer', 'creditSales', 'payments', 'currencySymbol'));
     }
     
     /**
@@ -53,7 +59,10 @@ class CreditController extends Controller
      */
     public function recordPaymentForm(Customer $customer)
     {
-        return view('pos.credits.payment', compact('customer'));
+        // Get currency symbol from settings
+        $currencySymbol = config('settings.currency_symbol', 'KES');
+        
+        return view('pos.credits.payment', compact('customer', 'currencySymbol'));
     }
     
     /**
@@ -97,9 +106,11 @@ class CreditController extends Controller
             
             DB::commit();
             
+            $currencySymbol = config('settings.currency_symbol', 'KES');
+            
             return redirect()
                 ->route('pos.credits.show', $customer)
-                ->with('success', 'Payment of $' . number_format($request->amount, 2) . ' recorded successfully!');
+                ->with('success', 'Payment of ' . $currencySymbol . ' ' . number_format($request->amount, 2) . ' recorded successfully!');
                 
         } catch (\Exception $e) {
             DB::rollBack();

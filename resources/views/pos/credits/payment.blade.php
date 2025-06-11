@@ -20,11 +20,11 @@
                             </div>
                             <div>
                                 <h3 class="text-sm font-medium text-blue-800">Current Balance</h3>
-                                <p class="text-lg font-bold text-red-600">${{ number_format($customer->balance, 2) }}</p>
+                                <p class="text-lg font-bold text-red-600">{{ $currencySymbol }} {{ number_format($customer->balance, 2) }}</p>
                             </div>
                             <div>
                                 <h3 class="text-sm font-medium text-blue-800">Credit Limit</h3>
-                                <p class="text-lg font-semibold text-blue-900">${{ number_format($customer->credit_limit, 2) }}</p>
+                                <p class="text-lg font-semibold text-blue-900">{{ $currencySymbol }} {{ number_format($customer->credit_limit, 2) }}</p>
                                 @php
                                     $percentage = $customer->credit_limit > 0 
                                         ? round(($customer->balance / $customer->credit_limit) * 100) 
@@ -57,10 +57,10 @@
                             
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                                 <div>
-                                    <label for="amount" class="block text-sm font-medium text-gray-700 mb-1">Payment Amount ($)</label>
+                                    <label for="amount" class="block text-sm font-medium text-gray-700 mb-1">Payment Amount ({{ $currencySymbol }})</label>
                                     <div class="mt-1 relative rounded-md shadow-sm">
                                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <span class="text-gray-500 sm:text-sm">$</span>
+                                            <span class="text-gray-500 sm:text-sm">{{ $currencySymbol }}</span>
                                         </div>
                                         <input type="number" name="amount" id="amount" 
                                                class="focus:ring-blue-500 focus:border-blue-500 block w-full pl-8 pr-12 sm:text-sm border-gray-300 rounded-md" 
@@ -72,8 +72,8 @@
                                                required>
                                     </div>
                                     <div class="mt-1 flex justify-between text-xs text-gray-500">
-                                        <span>Min: $0.01</span>
-                                        <span>Max: ${{ number_format($customer->balance, 2) }}</span>
+                                        <span>Min: {{ $currencySymbol }} 0.01</span>
+                                        <span>Max: {{ $currencySymbol }} {{ number_format($customer->balance, 2) }}</span>
                                     </div>
                                     @error('amount')
                                         <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -121,10 +121,10 @@
                                 <h4 class="text-sm font-medium text-gray-700 mb-2">Payment Preview</h4>
                                 <div class="grid grid-cols-2 gap-2 text-sm">
                                     <div class="text-gray-600">Before Payment:</div>
-                                    <div class="font-medium text-red-600">${{ number_format($customer->balance, 2) }}</div>
+                                    <div class="font-medium text-red-600">{{ $currencySymbol }} {{ number_format($customer->balance, 2) }}</div>
                                     
                                     <div class="text-gray-600">After Payment:</div>
-                                    <div id="after-payment" class="font-medium text-green-600">${{ number_format(0, 2) }}</div>
+                                    <div id="after-payment" class="font-medium text-green-600">{{ $currencySymbol }} {{ number_format(0, 2) }}</div>
                                     
                                     <div class="text-gray-600">Payment Status:</div>
                                     <div id="payment-status" class="font-medium text-green-600">Fully Paid</div>
@@ -153,12 +153,13 @@
             const afterPaymentEl = document.getElementById('after-payment');
             const paymentStatusEl = document.getElementById('payment-status');
             const currentBalance = {{ $customer->balance }};
+            const currencySymbol = '{{ $currencySymbol }}';
             
             function updatePreview() {
                 const paymentAmount = parseFloat(amountInput.value) || 0;
                 const remainingBalance = Math.max(0, currentBalance - paymentAmount).toFixed(2);
                 
-                afterPaymentEl.textContent = '$' + remainingBalance;
+                afterPaymentEl.textContent = currencySymbol + ' ' + remainingBalance;
                 
                 if (remainingBalance <= 0) {
                     paymentStatusEl.textContent = 'Fully Paid';

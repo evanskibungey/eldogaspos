@@ -17,7 +17,7 @@
                                 <h3 class="text-lg font-semibold text-blue-800">Credit Summary</h3>
                                 <p class="text-sm text-blue-600">Total outstanding credit from {{ $customers->total() }} customers</p>
                             </div>
-                            <div class="text-2xl font-bold text-blue-700">${{ number_format($totalCredit, 2) }}</div>
+                            <div class="text-2xl font-bold text-blue-700">{{ $currencySymbol }} {{ number_format($totalCredit, 2) }}</div>
                         </div>
                     </div>
 
@@ -76,10 +76,10 @@
                                                 <div class="text-sm text-gray-500">{{ $customer->phone }}</div>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap">
-                                                <div class="text-sm text-gray-900">${{ number_format($customer->credit_limit, 2) }}</div>
+                                                <div class="text-sm text-gray-900">{{ $currencySymbol }} {{ number_format($customer->credit_limit, 2) }}</div>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap">
-                                                <div class="text-sm font-medium text-red-700">${{ number_format($customer->balance, 2) }}</div>
+                                                <div class="text-sm font-medium text-red-700">{{ $currencySymbol }} {{ number_format($customer->balance, 2) }}</div>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 @php

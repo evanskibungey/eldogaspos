@@ -39,14 +39,14 @@
                             <h3 class="text-lg font-semibold text-blue-800 mb-4">Credit Summary</h3>
                             <div class="grid grid-cols-2 gap-3">
                                 <div class="text-sm font-medium text-blue-600">Credit Limit:</div>
-                                <div class="text-sm text-blue-900">${{ number_format($customer->credit_limit, 2) }}</div>
+                                <div class="text-sm text-blue-900">{{ $currencySymbol }} {{ number_format($customer->credit_limit, 2) }}</div>
                                 
                                 <div class="text-sm font-medium text-blue-600">Current Balance:</div>
-                                <div class="text-sm font-bold text-red-600">${{ number_format($customer->balance, 2) }}</div>
+                                <div class="text-sm font-bold text-red-600">{{ $currencySymbol }} {{ number_format($customer->balance, 2) }}</div>
                                 
                                 <div class="text-sm font-medium text-blue-600">Available Credit:</div>
                                 <div class="text-sm {{ ($customer->credit_limit - $customer->balance) > 0 ? 'text-green-600' : 'text-red-600' }}">
-                                    ${{ number_format(max(0, $customer->credit_limit - $customer->balance), 2) }}
+                                    {{ $currencySymbol }} {{ number_format(max(0, $customer->credit_limit - $customer->balance), 2) }}
                                 </div>
                                 
                                 <div class="text-sm font-medium text-blue-600">Usage:</div>
@@ -75,10 +75,10 @@
                             <h3 class="text-lg font-semibold text-green-800 mb-4">Payment Summary</h3>
                             <div class="grid grid-cols-2 gap-3">
                                 <div class="text-sm font-medium text-green-600">Total Sales:</div>
-                                <div class="text-sm text-green-900">${{ number_format($creditSales->sum('total_amount'), 2) }}</div>
+                                <div class="text-sm text-green-900">{{ $currencySymbol }} {{ number_format($creditSales->sum('total_amount'), 2) }}</div>
                                 
                                 <div class="text-sm font-medium text-green-600">Total Paid:</div>
-                                <div class="text-sm text-green-900">${{ number_format($payments->sum('amount'), 2) }}</div>
+                                <div class="text-sm text-green-900">{{ $currencySymbol }} {{ number_format($payments->sum('amount'), 2) }}</div>
                                 
                                 <div class="text-sm font-medium text-green-600">Last Payment:</div>
                                 <div class="text-sm text-green-900">
@@ -161,7 +161,7 @@
                                                         {{ $sale->items->count() }}
                                                     </td>
                                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                                        ${{ number_format($sale->total_amount, 2) }}
+                                                        {{ $currencySymbol }} {{ number_format($sale->total_amount, 2) }}
                                                     </td>
                                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
@@ -226,7 +226,7 @@
                                                         {{ $payment->created_at->format('M d, Y h:i A') }}
                                                     </td>
                                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-700">
-                                                        ${{ number_format($payment->amount, 2) }}
+                                                        {{ $currencySymbol }} {{ number_format($payment->amount, 2) }}
                                                     </td>
                                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
