@@ -103,7 +103,26 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [SettingController::class, 'index']);
         Route::get('/{key}', [SettingController::class, 'show']);
         Route::post('/multiple', [SettingController::class, 'getMultiple']);
-    });     
+    });
+    
+    // Cylinder Management Routes
+    Route::prefix('cylinders')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Admin\CylinderController::class, 'index']);
+        Route::post('/', [\App\Http\Controllers\Admin\CylinderController::class, 'store']);
+        Route::get('/{cylinder}', [\App\Http\Controllers\Admin\CylinderController::class, 'show']);
+        Route::put('/{cylinder}', [\App\Http\Controllers\Admin\CylinderController::class, 'update']);
+        Route::post('/{cylinder}/complete', [\App\Http\Controllers\Admin\CylinderController::class, 'complete']);
+        Route::post('/{cylinder}/quick-complete', [\App\Http\Controllers\Admin\CylinderController::class, 'quickComplete']);
+        Route::post('/{cylinder}/quick-return', [\App\Http\Controllers\Admin\CylinderController::class, 'quickReturn']);
+        Route::post('/{cylinder}/cancel', [\App\Http\Controllers\Admin\CylinderController::class, 'cancel']);
+        Route::delete('/{cylinder}', [\App\Http\Controllers\Admin\CylinderController::class, 'destroy']);
+    });
+    
+    // Customer Management Routes (for API)
+    Route::prefix('customers')->group(function () {
+        Route::get('/search', [\App\Http\Controllers\Admin\CustomerController::class, 'searchCustomers']);
+        Route::post('/quick-create', [\App\Http\Controllers\Admin\CustomerController::class, 'quickStore']);
+    });
     
 });
 
