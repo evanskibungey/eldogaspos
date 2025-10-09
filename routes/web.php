@@ -88,13 +88,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/', [AdminCylinderController::class, 'index'])->name('index');
             Route::get('/create', [AdminCylinderController::class, 'create'])->name('create');
             Route::post('/', [AdminCylinderController::class, 'store'])->name('store');
-            Route::get('/{cylinder}', [AdminCylinderController::class, 'show'])->name('show');
+            Route::get('/search-customers', [AdminCylinderController::class, 'searchCustomers'])->name('search-customers');
+            Route::get('/{cylinder}/receipt', [AdminCylinderController::class, 'receipt'])->name('receipt');
             Route::get('/{cylinder}/edit', [AdminCylinderController::class, 'edit'])->name('edit');
+            Route::get('/{cylinder}', [AdminCylinderController::class, 'show'])->name('show');
             Route::put('/{cylinder}', [AdminCylinderController::class, 'update'])->name('update');
             Route::post('/{cylinder}/complete', [AdminCylinderController::class, 'complete'])->name('complete');
             Route::post('/{cylinder}/cancel', [AdminCylinderController::class, 'cancel'])->name('cancel');
             Route::delete('/{cylinder}', [AdminCylinderController::class, 'destroy'])->name('destroy');
-            Route::get('/search-customers', [AdminCylinderController::class, 'searchCustomers'])->name('search-customers');
         });
         
         // Customer Management
@@ -170,11 +171,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/', [AdminCylinderController::class, 'index'])->name('index');
             Route::get('/create', [AdminCylinderController::class, 'create'])->name('create');
             Route::post('/', [AdminCylinderController::class, 'store'])->name('store');
+            Route::get('/search-customers', [AdminCylinderController::class, 'searchCustomers'])->name('search-customers');
+            Route::get('/{cylinder}/receipt', [AdminCylinderController::class, 'receipt'])->name('receipt');
             Route::get('/{cylinder}', [AdminCylinderController::class, 'show'])->name('show');
             Route::post('/{cylinder}/complete', [AdminCylinderController::class, 'complete'])->name('complete');
             Route::post('/{cylinder}/quick-complete', [AdminCylinderController::class, 'quickComplete'])->name('quick-complete');
             Route::post('/{cylinder}/quick-return', [AdminCylinderController::class, 'quickReturn'])->name('quick-return');
-            Route::get('/search-customers', [AdminCylinderController::class, 'searchCustomers'])->name('search-customers');
         });
         
         // Customer API endpoints for POS

@@ -166,7 +166,7 @@
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cylinder</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Products</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -187,9 +187,25 @@
                                         <div class="text-xs text-gray-500">{{ $transaction->customer_phone }}</div>
                                     </td>
                                     
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm text-gray-900">{{ $transaction->cylinder_size }}</div>
-                                        <div class="text-xs text-gray-500">{{ $transaction->cylinder_type }}</div>
+                                    <td class="px-6 py-4">
+                                        @if($transaction->items->count() > 0)
+                                            <div class="text-sm space-y-1">
+                                                @foreach($transaction->items as $item)
+                                                    <div class="flex items-center justify-between">
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="font-medium text-gray-900">{{ $item->product->name }}</span>
+                                                            @if($item->brand)
+                                                                <span class="text-xs px-2 py-0.5 bg-purple-100 text-purple-800 rounded-full">{{ $item->brand }}</span>
+                                                            @endif
+                                                        </div>
+                                                        <span class="text-xs px-2 py-0.5 bg-gray-100 rounded-full">×{{ $item->quantity }}</span>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                            <div class="text-xs text-gray-500 mt-1">{{ $transaction->items->count() }} item(s)</div>
+                                        @else
+                                            <span class="text-sm text-gray-400">No items</span>
+                                        @endif
                                     </td>
                                     
                                     <td class="px-6 py-4 whitespace-nowrap">

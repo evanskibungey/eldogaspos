@@ -8,6 +8,7 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Customer;
 use App\Models\Setting;
+use App\Models\StockMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -247,10 +248,23 @@ class SaleController extends Controller
             $sale->status = 'voided';
             $sale->save();
             
-            // Return items to inventory
+            // Return items to inventory and create stock movement records
             foreach ($sale->items as $item) {
                 $product = $item->product;
                 $product->increment('stock', $item->quantity);
+                
+                // Create stock movement record for the void
+                StockMovement::create([
+                    'product_id' => $product->id,
+                    'type' => 'in',
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->unit_price,
+                    'reference_type' => 'sale_void',
+                    'reference_id' => $sale->id,
+                    'notes' => 'Stock returned from voided sale #' . $sale->id . ' (Receipt: ' . $sale->receipt_number . ')',
+                    'serial_number' => $item->serial_number,
+                    'created_by' => auth()->id()
+                ]);
             }
             
             // If this was a credit sale, adjust customer balance
@@ -384,7 +398,7 @@ class SaleController extends Controller
                 // Use the serial number from the item if available, otherwise use it from the product
                 $serialNumber = isset($item['serial_number']) ? $item['serial_number'] : (isset($product->serial_number) ? $product->serial_number : null);
 
-                SaleItem::create([
+                $saleItem = SaleItem::create([
                     'sale_id' => $saleId,
                     'product_id' => $product->id,
                     'quantity' => $item['quantity'],
@@ -395,6 +409,19 @@ class SaleController extends Controller
 
                 // Update product stock
                 $product->decrement('stock', $item['quantity']);
+
+                // Create stock movement record for the sale
+                StockMovement::create([
+                    'product_id' => $product->id,
+                    'type' => 'out',
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['price'],
+                    'reference_type' => 'sale',
+                    'reference_id' => $saleId,
+                    'notes' => 'Stock deducted from POS sale #' . $saleId,
+                    'serial_number' => $serialNumber,
+                    'created_by' => auth()->id()
+                ]);
             } catch (\Exception $e) {
                 Log::error('Error processing cart item: ' . $e->getMessage());
                 Log::error('Item data: ' . json_encode($item));

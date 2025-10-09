@@ -15,6 +15,7 @@ class CylinderTransaction extends Model
         'customer_id',
         'customer_name',
         'customer_phone',
+        'product_id',
         'cylinder_size',
         'cylinder_type',
         'transaction_type',
@@ -52,6 +53,30 @@ class CylinderTransaction extends Model
     public function completedBy()
     {
         return $this->belongsTo(User::class, 'completed_by');
+    }
+
+    public function items()
+    {
+        return $this->hasMany(CylinderTransactionItem::class);
+    }
+
+    public function products()
+    {
+        return $this->belongsToMany(Product::class, 'cylinder_transaction_items')
+                    ->withPivot('quantity', 'unit_price', 'subtotal')
+                    ->withTimestamps();
+    }
+
+    public function stockMovements()
+    {
+        return $this->hasMany(StockMovement::class, 'reference_id')
+                    ->where('reference_type', 'cylinder_transaction');
+    }
+
+    public function cancellationStockMovements()
+    {
+        return $this->hasMany(StockMovement::class, 'reference_id')
+                    ->where('reference_type', 'cylinder_cancellation');
     }
 
     // Scopes
@@ -119,6 +144,16 @@ class CylinderTransaction extends Model
     public function getTotalAmount()
     {
         return $this->amount + $this->deposit_amount;
+    }
+
+    public function calculateTotalFromItems()
+    {
+        return $this->items()->sum('subtotal');
+    }
+
+    public function getTotalQuantity()
+    {
+        return $this->items()->sum('quantity');
     }
 
     public function getStatusBadgeColor()

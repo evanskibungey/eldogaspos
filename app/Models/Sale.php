@@ -48,6 +48,18 @@ class Sale extends Model
         return $this->hasOne(OfflineSyncLog::class);
     }
 
+    public function stockMovements()
+    {
+        return $this->hasMany(StockMovement::class, 'reference_id')
+                    ->where('reference_type', 'sale');
+    }
+
+    public function voidStockMovements()
+    {
+        return $this->hasMany(StockMovement::class, 'reference_id')
+                    ->where('reference_type', 'sale_void');
+    }
+
     public function scopeOfflineSync($query)
     {
         return $query->where('is_offline_sync', true);

@@ -4,39 +4,38 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\CylinderTransaction;
+use App\Models\CylinderTransactionItem;
 use App\Models\Customer;
+use App\Models\Product;
+use App\Models\StockMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class CylinderController extends Controller
 {
     public function index(Request $request)
     {
-        $query = CylinderTransaction::with(['customer', 'createdBy', 'completedBy'])
+        $query = CylinderTransaction::with(['customer', 'createdBy', 'completedBy', 'items.product.category'])
             ->orderBy('created_at', 'desc');
 
-        // Detect if this is being called from POS routes
         $isPosContext = $request->route() && str_starts_with($request->route()->getName(), 'pos.');
         
-        // Filter active transactions by default for POS context
         if ($isPosContext && !$request->filled('status')) {
             $query->where('status', 'active');
         } else if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        // Filter by transaction type
         if ($request->filled('type')) {
             $query->where('transaction_type', $request->type);
         }
 
-        // Filter by payment status
         if ($request->filled('payment_status')) {
             $query->where('payment_status', $request->payment_status);
         }
 
-        // Search by customer name, phone, or reference
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
@@ -46,11 +45,9 @@ class CylinderController extends Controller
             });
         }
 
-        // Adjust pagination based on context
         $perPage = $isPosContext ? 15 : 20;
         $transactions = $query->paginate($perPage);
 
-        // Get summary statistics (different for POS vs Admin)
         if ($isPosContext) {
             $stats = [
                 'active_drop_offs' => CylinderTransaction::active()->dropOffs()->count(),
@@ -76,7 +73,13 @@ class CylinderController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('admin.cylinders.create', compact('customers'));
+        $products = Product::where('status', 'active')
+            ->where('stock', '>', 0)
+            ->with('category')
+            ->orderBy('name')
+            ->get();
+
+        return view('admin.cylinders.create', compact('customers', 'products'));
     }
 
     public function store(Request $request)
@@ -86,11 +89,12 @@ class CylinderController extends Controller
             'customer_id' => 'nullable|exists:customers,id',
             'customer_name' => 'required_without:customer_id|nullable|string|max:255',
             'customer_phone' => 'required_without:customer_id|nullable|string|max:20',
-            'cylinder_size' => 'required|string|max:50',
-            'cylinder_type' => 'required|string|max:50',
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.brand' => 'nullable|string|max:100',
+            'items.*.quantity' => 'required|integer|min:1',
             'payment_status' => 'required|in:paid,pending',
-            'amount' => 'required|numeric|min:0',
-            'deposit_amount' => 'nullable|numeric|min:0',
+            'deposit_amount' => 'required_if:transaction_type,advance_collection|nullable|numeric|min:0',
             'notes' => 'nullable|string|max:1000',
         ]);
 
@@ -98,11 +102,9 @@ class CylinderController extends Controller
             DB::beginTransaction();
 
             // Create or find customer
-            $customer = null;
             if ($request->customer_id) {
                 $customer = Customer::findOrFail($request->customer_id);
             } else {
-                // Create new customer
                 $customer = Customer::create([
                     'name' => $request->customer_name,
                     'phone' => $request->customer_phone,
@@ -110,38 +112,95 @@ class CylinderController extends Controller
                 ]);
             }
 
+            // Verify stock availability for all items
+            $totalAmount = 0;
+            $itemsData = [];
+            
+            foreach ($request->items as $item) {
+                $product = Product::findOrFail($item['product_id']);
+                
+                if ($product->stock < $item['quantity']) {
+                    throw new \Exception("Insufficient stock for {$product->name}. Available: {$product->stock}, Requested: {$item['quantity']}");
+                }
+                
+                $subtotal = $product->price * $item['quantity'];
+                $totalAmount += $subtotal;
+                
+                $itemsData[] = [
+                    'product' => $product,
+                    'brand' => $item['brand'] ?? $product->brand ?? 'N/A',
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $product->price,
+                    'subtotal' => $subtotal,
+                ];
+            }
+
+            // Create cylinder transaction
             $transaction = CylinderTransaction::create([
                 'customer_id' => $customer->id,
                 'customer_name' => $customer->name,
                 'customer_phone' => $customer->phone,
-                'cylinder_size' => $request->cylinder_size,
-                'cylinder_type' => $request->cylinder_type,
+                'cylinder_size' => null, // Not needed anymore
+                'cylinder_type' => null, // Not needed anymore
                 'transaction_type' => $request->transaction_type,
                 'payment_status' => $request->payment_status,
-                'amount' => $request->amount,
+                'amount' => $totalAmount,
                 'deposit_amount' => $request->deposit_amount ?? 0,
                 'drop_off_date' => now(),
                 'notes' => $request->notes,
                 'created_by' => Auth::id(),
             ]);
 
-            // If it's an advance collection and payment is pending, add to customer balance
-            if ($request->transaction_type === 'advance_collection' && $request->payment_status === 'pending') {
-                $totalAmount = $request->amount + ($request->deposit_amount ?? 0);
-                $customer->increment('balance', $totalAmount);
+            // Create transaction items
+            foreach ($itemsData as $itemData) {
+                CylinderTransactionItem::create([
+                    'cylinder_transaction_id' => $transaction->id,
+                    'product_id' => $itemData['product']->id,
+                    'brand' => $itemData['brand'],
+                    'quantity' => $itemData['quantity'],
+                    'unit_price' => $itemData['unit_price'],
+                    'subtotal' => $itemData['subtotal'],
+                ]);
             }
+
+            // Handle customer balance for pending advance collection
+            if ($request->transaction_type === 'advance_collection' && $request->payment_status === 'pending') {
+                $totalWithDeposit = $totalAmount + ($request->deposit_amount ?? 0);
+                $customer->increment('balance', $totalWithDeposit);
+            }
+
+            // Deduct inventory immediately for ALL transactions (both drop-off and advance collection)
+            // Once a transaction is created, the stock is no longer available for sale
+            $this->deductInventoryForTransaction($transaction);
 
             DB::commit();
 
-            // Detect if this is being called from POS routes
             $isPosContext = $request->route() && str_starts_with($request->route()->getName(), 'pos.');
-            $showRoute = $isPosContext ? 'pos.cylinders.show' : 'admin.cylinders.show';
+            $receiptRoute = $isPosContext ? 'pos.cylinders.receipt' : 'admin.cylinders.receipt';
 
-            return redirect()->route($showRoute, $transaction)
-                ->with('success', 'Cylinder transaction created successfully!');
+            // Return JSON response with transaction ID for redirect to receipt
+            return response()->json([
+                'success' => true,
+                'message' => 'Cylinder transaction created successfully with ' . count($itemsData) . ' item(s)!',
+                'transaction_id' => $transaction->id,
+                'redirect_url' => route($receiptRoute, $transaction)
+            ]);
 
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error('Cylinder transaction creation failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            // Return JSON response for AJAX requests
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to create transaction: ' . $e->getMessage()
+                ], 422);
+            }
+            
             return back()->withErrors(['error' => 'Failed to create transaction: ' . $e->getMessage()])
                 ->withInput();
         }
@@ -149,81 +208,8 @@ class CylinderController extends Controller
 
     public function show(CylinderTransaction $cylinder)
     {
-        $cylinder->load(['customer', 'createdBy', 'completedBy']);
+        $cylinder->load(['customer', 'createdBy', 'completedBy', 'items.product.category']);
         return view('admin.cylinders.show', compact('cylinder'));
-    }
-
-    public function edit(CylinderTransaction $cylinder)
-    {
-        if ($cylinder->isCompleted()) {
-            return redirect()->route('admin.cylinders.show', $cylinder)
-                ->with('error', 'Cannot edit completed transaction.');
-        }
-
-        $customers = Customer::where('status', 'active')
-            ->orderBy('name')
-            ->get();
-
-        return view('admin.cylinders.edit', compact('cylinder', 'customers'));
-    }
-
-    public function update(Request $request, CylinderTransaction $cylinder)
-    {
-        if ($cylinder->isCompleted()) {
-            return redirect()->route('admin.cylinders.show', $cylinder)
-                ->with('error', 'Cannot update completed transaction.');
-        }
-
-        $request->validate([
-            'customer_id' => 'required|exists:customers,id',
-            'cylinder_size' => 'required|string|max:50',
-            'cylinder_type' => 'required|string|max:50',
-            'payment_status' => 'required|in:paid,pending',
-            'amount' => 'required|numeric|min:0',
-            'deposit_amount' => 'nullable|numeric|min:0',
-            'notes' => 'nullable|string|max:1000',
-        ]);
-
-        try {
-            DB::beginTransaction();
-
-            $customer = Customer::findOrFail($request->customer_id);
-
-            // Handle balance adjustments for advance collections
-            if ($cylinder->isAdvanceCollection() && $cylinder->isPending()) {
-                // Remove old amount from customer balance
-                $oldTotal = $cylinder->amount + $cylinder->deposit_amount;
-                $customer->decrement('balance', $oldTotal);
-
-                // Add new amount if still pending
-                if ($request->payment_status === 'pending') {
-                    $newTotal = $request->amount + ($request->deposit_amount ?? 0);
-                    $customer->increment('balance', $newTotal);
-                }
-            }
-
-            $cylinder->update([
-                'customer_id' => $customer->id,
-                'customer_name' => $customer->name,
-                'customer_phone' => $customer->phone,
-                'cylinder_size' => $request->cylinder_size,
-                'cylinder_type' => $request->cylinder_type,
-                'payment_status' => $request->payment_status,
-                'amount' => $request->amount,
-                'deposit_amount' => $request->deposit_amount ?? 0,
-                'notes' => $request->notes,
-            ]);
-
-            DB::commit();
-
-            return redirect()->route('admin.cylinders.show', $cylinder)
-                ->with('success', 'Cylinder transaction updated successfully!');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return back()->withErrors(['error' => 'Failed to update transaction: ' . $e->getMessage()])
-                ->withInput();
-        }
     }
 
     public function complete(Request $request, CylinderTransaction $cylinder)
@@ -248,36 +234,31 @@ class CylinderController extends Controller
             ];
 
             if ($cylinder->isDropOff()) {
-                // Customer is collecting refilled cylinder
                 $updates['collection_date'] = now();
                 
-                // Update payment status if provided
                 if ($request->filled('payment_status')) {
                     $updates['payment_status'] = $request->payment_status;
                 }
 
-                // If payment is made now and was pending, handle customer balance
-                if ($cylinder->isPending() && $request->payment_status === 'paid') {
-                    // For drop-offs, we don't typically affect customer balance
-                    // unless they had credit before
-                }
+                // Inventory already deducted when transaction was created
+                // No need to deduct again
 
             } else {
-                // Customer is returning empty cylinder for advance collection
+                // Advance collection - customer returning empty cylinders
                 $updates['return_date'] = now();
 
                 // Process refund of deposit
                 if ($cylinder->deposit_amount > 0) {
-                    // Reduce customer balance by deposit amount
                     $cylinder->customer->decrement('balance', $cylinder->deposit_amount);
                 }
 
-                // If payment was pending, mark as paid since empty cylinder is returned
+                // If payment was pending, mark as paid
                 if ($cylinder->isPending()) {
                     $updates['payment_status'] = 'paid';
-                    // Reduce customer balance by the gas amount
                     $cylinder->customer->decrement('balance', $cylinder->amount);
                 }
+                
+                // Inventory already deducted when transaction was created
             }
 
             $cylinder->update($updates);
@@ -285,10 +266,9 @@ class CylinderController extends Controller
             DB::commit();
 
             $message = $cylinder->isDropOff() 
-                ? 'Customer has collected the refilled cylinder!' 
-                : 'Empty cylinder returned and deposit refunded!';
+                ? 'Customer has collected the refilled cylinders!' 
+                : 'Empty cylinders returned and deposit refunded!';
 
-            // Detect if this is being called from POS routes
             $isPosContext = $request->route() && str_starts_with($request->route()->getName(), 'pos.');
             $indexRoute = $isPosContext ? 'pos.cylinders.index' : 'admin.cylinders.index';
 
@@ -311,11 +291,14 @@ class CylinderController extends Controller
         try {
             DB::beginTransaction();
 
-            // Reverse any balance changes
+            // Reverse customer balance changes
             if ($cylinder->isAdvanceCollection() && $cylinder->isPending()) {
                 $totalAmount = $cylinder->amount + $cylinder->deposit_amount;
                 $cylinder->customer->decrement('balance', $totalAmount);
             }
+
+            // Restore inventory if it was deducted
+            $this->restoreInventoryForTransaction($cylinder);
 
             $cylinder->update([
                 'status' => 'cancelled',
@@ -343,11 +326,14 @@ class CylinderController extends Controller
         try {
             DB::beginTransaction();
 
-            // Reverse any balance changes
+            // Reverse customer balance changes
             if ($cylinder->isAdvanceCollection() && $cylinder->isPending()) {
                 $totalAmount = $cylinder->amount + $cylinder->deposit_amount;
                 $cylinder->customer->decrement('balance', $totalAmount);
             }
+
+            // Restore inventory if it was deducted
+            $this->restoreInventoryForTransaction($cylinder);
 
             $cylinder->delete();
 
@@ -362,80 +348,6 @@ class CylinderController extends Controller
         }
     }
 
-    // POS-specific methods
-    
-    // Quick action for completing drop-off collections
-    public function quickComplete(CylinderTransaction $cylinder)
-    {
-        if (!$cylinder->isDropOff() || $cylinder->isCompleted()) {
-            return response()->json(['error' => 'Invalid transaction for quick completion'], 400);
-        }
-
-        try {
-            DB::beginTransaction();
-
-            $cylinder->update([
-                'status' => 'completed',
-                'collection_date' => now(),
-                'completed_by' => Auth::id(),
-            ]);
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Cylinder collection completed successfully!'
-            ]);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json(['error' => 'Failed to complete transaction'], 500);
-        }
-    }
-
-    // Quick action for processing return of advance collection
-    public function quickReturn(CylinderTransaction $cylinder)
-    {
-        if (!$cylinder->isAdvanceCollection() || $cylinder->isCompleted()) {
-            return response()->json(['error' => 'Invalid transaction for quick return'], 400);
-        }
-
-        try {
-            DB::beginTransaction();
-
-            $updates = [
-                'status' => 'completed',
-                'return_date' => now(),
-                'completed_by' => Auth::id(),
-            ];
-
-            // Process refund of deposit
-            if ($cylinder->deposit_amount > 0) {
-                $cylinder->customer->decrement('balance', $cylinder->deposit_amount);
-            }
-
-            // If payment was pending, mark as paid since empty cylinder is returned
-            if ($cylinder->isPending()) {
-                $updates['payment_status'] = 'paid';
-                $cylinder->customer->decrement('balance', $cylinder->amount);
-            }
-
-            $cylinder->update($updates);
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Empty cylinder return processed successfully!'
-            ]);
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json(['error' => 'Failed to process return'], 500);
-        }
-    }
-
-    // API endpoint for searching customers
     public function searchCustomers(Request $request)
     {
         $search = $request->get('q', '');
@@ -449,5 +361,132 @@ class CylinderController extends Controller
             ->get(['id', 'name', 'phone', 'balance']);
 
         return response()->json($customers);
+    }
+
+    /**
+     * Generate and show receipt for a transaction
+     */
+    public function receipt(CylinderTransaction $cylinder)
+    {
+        $cylinder->load(['customer', 'items.product.category', 'createdBy']);
+        return view('admin.cylinders.receipt', compact('cylinder'));
+    }
+
+    /**
+     * Deduct inventory for all items in a transaction
+     */
+    private function deductInventoryForTransaction(CylinderTransaction $transaction)
+    {
+        try {
+            foreach ($transaction->items as $item) {
+                $product = Product::findOrFail($item->product_id);
+
+                // Verify stock availability
+                if ($product->stock < $item->quantity) {
+                    throw new \Exception("Insufficient stock for {$product->name}. Available: {$product->stock}, Required: {$item->quantity}");
+                }
+
+                // Deduct stock
+                $product->decrement('stock', $item->quantity);
+
+                // Create stock movement record
+                StockMovement::create([
+                    'product_id' => $product->id,
+                    'type' => 'out',
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->unit_price,
+                    'reference_type' => 'cylinder_transaction',
+                    'reference_id' => $transaction->id,
+                    'notes' => $this->generateStockMovementNote($transaction, $product, $item->quantity, 'deduct'),
+                    'created_by' => Auth::id()
+                ]);
+
+                Log::info('Inventory deducted for cylinder transaction', [
+                    'transaction_id' => $transaction->id,
+                    'product_id' => $product->id,
+                    'quantity' => $item->quantity,
+                    'new_stock' => $product->stock
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Error deducting inventory for cylinder: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Restore inventory for all items in a cancelled transaction
+     */
+    private function restoreInventoryForTransaction(CylinderTransaction $transaction)
+    {
+        try {
+            // Since inventory is now ALWAYS deducted when transaction is created,
+            // we need to restore it when cancelling UNLESS the transaction was already completed
+            if ($transaction->isCompleted()) {
+                // Don't restore inventory for completed transactions
+                return;
+            }
+
+            foreach ($transaction->items as $item) {
+                $product = Product::findOrFail($item->product_id);
+
+                // Restore stock
+                $product->increment('stock', $item->quantity);
+
+                // Create stock movement record
+                StockMovement::create([
+                    'product_id' => $product->id,
+                    'type' => 'in',
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->unit_price,
+                    'reference_type' => 'cylinder_cancellation',
+                    'reference_id' => $transaction->id,
+                    'notes' => $this->generateStockMovementNote($transaction, $product, $item->quantity, 'restore'),
+                    'created_by' => Auth::id()
+                ]);
+
+                Log::info('Inventory restored for cancelled cylinder transaction', [
+                    'transaction_id' => $transaction->id,
+                    'product_id' => $product->id,
+                    'quantity' => $item->quantity,
+                    'new_stock' => $product->stock
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Error restoring inventory for cylinder: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Generate descriptive note for stock movement
+     */
+    private function generateStockMovementNote(CylinderTransaction $transaction, Product $product, int $quantity, string $action)
+    {
+        $transactionType = $transaction->isDropOff() ? 'drop-off' : 'advance collection';
+        
+        if ($action === 'deduct') {
+            return sprintf(
+                'Stock deducted - Cylinder %s transaction #%d created (Ref: %s, Customer: %s, Product: %s, Qty: %d)',
+                $transactionType,
+                $transaction->id,
+                $transaction->reference_number,
+                $transaction->customer_name,
+                $product->name,
+                $quantity
+            );
+        } else {
+            return sprintf(
+                'Stock restored - Cylinder %s transaction #%d cancelled (Ref: %s, Customer: %s, Product: %s, Qty: %d)',
+                $transactionType,
+                $transaction->id,
+                $transaction->reference_number,
+                $transaction->customer_name,
+                $product->name,
+                $quantity
+            );
+        }
     }
 }
