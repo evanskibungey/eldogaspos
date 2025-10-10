@@ -10,14 +10,24 @@ use App\Models\Customer;
 use App\Models\Category;
 use App\Models\Setting;
 use App\Models\CylinderTransaction;
+use App\Services\StockService;
+use App\Services\ReferenceNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Carbon\Carbon;
 
 class PosController extends Controller
 {
+    protected $stockService;
+    protected $referenceNumberService;
+
+    public function __construct(StockService $stockService, ReferenceNumberService $referenceNumberService)
+    {
+        $this->stockService = $stockService;
+        $this->referenceNumberService = $referenceNumberService;
+    }
+
     /**
      * Get a setting value.
      *
@@ -29,6 +39,7 @@ class PosController extends Controller
     {
         return Setting::get($key, $default);
     }
+
     public function index()
     {
         try {
@@ -60,7 +71,6 @@ class PosController extends Controller
                     'price' => (float)$product->price,
                     'stock' => $product->stock,
                     'min_stock' => $product->min_stock,
-                    // Format image URL properly
                     'image' => $product->image ? asset('storage/' . $product->image) : asset('images/placeholder.jpg'),
                     'status' => $product->status,
                     'category_name' => $product->category ? $product->category->name : 'Uncategorized'
@@ -71,7 +81,6 @@ class PosController extends Controller
             if ($products->count() === 0) {
                 Log::warning('POS Dashboard: No active products found');
                 
-                // Check if there are any products at all
                 $totalProducts = Product::count();
                 $inactiveProducts = Product::where('status', 'inactive')->count();
                 $nullStatusProducts = Product::whereNull('status')->count();
@@ -100,7 +109,6 @@ class PosController extends Controller
         
         if ($isOfflineSync) {
             Log::info('Detected offline sync request - redirecting to sync controller');
-            // For offline sync requests, use the dedicated sync controller
             $syncController = new \App\Http\Controllers\Api\OfflineSyncController();
             return $syncController->syncOfflineSale($request);
         }
@@ -108,7 +116,6 @@ class PosController extends Controller
         try {
             // Validate the request
             Log::info('Validating request');
-            // Validate basic request structure first
             $basicValidation = $request->validate([
                 'cart_items' => 'required|array|min:1',
                 'cart_items.*.id' => 'required|exists:products,id',
@@ -129,37 +136,23 @@ class PosController extends Controller
             }
             Log::info('Request validated successfully');
 
-            // Pre-validate stock availability before starting transaction
-            foreach ($request->cart_items as $item) {
-                $product = Product::find($item['id']);
-                if (!$product) {
-                    throw new \Exception("Product with ID {$item['id']} not found");
-                }
-                if ($product->stock < $item['quantity']) {
-                    throw new \Exception("Insufficient stock for {$product->name}. Available: {$product->stock}, Requested: {$item['quantity']}");
-                }
-            }
-            Log::info('Stock availability pre-check passed');
-
             DB::beginTransaction();
             Log::info('DB transaction started');
 
             // Handle customer based on payment method
             $customer = null;
             if ($request->payment_method === 'credit') {
-                // For credit payment, create or get customer from provided details
                 Log::info('Processing credit payment, handling customer creation');
                 $customer = $this->handleCustomerCreation($request->customer_details);
                 Log::info('Customer created/found', ['customer_id' => $customer->id]);
             } else {
-                // For cash payment, use default walk-in customer or create if doesn't exist
                 Log::info('Processing cash payment, using default walk-in customer');
                 $customer = $this->getOrCreateWalkInCustomer();
                 Log::info('Walk-in customer used', ['customer_id' => $customer->id]);
             }
 
-            // Generate unique receipt number
-            $receiptNumber = $this->generateReceiptNumber();
+            // Generate unique receipt number with locking
+            $receiptNumber = $this->referenceNumberService->generateReceiptNumber();
             Log::info('Receipt number generated', ['receipt_number' => $receiptNumber]);
 
             // Calculate total amount
@@ -170,7 +163,7 @@ class PosController extends Controller
             Log::info('Creating sale record');
             $sale = $this->createSaleRecord([
                 'user_id' => auth()->id(),
-                'customer_id' => $customer->id, // Always associate a customer
+                'customer_id' => $customer->id,
                 'receipt_number' => $receiptNumber,
                 'total_amount' => $totalAmount,
                 'payment_method' => $request->payment_method,
@@ -179,8 +172,8 @@ class PosController extends Controller
             ]);
             Log::info('Sale record created', ['sale_id' => $sale->id]);
 
-            // Process cart items
-            Log::info('Processing cart items');
+            // Process cart items with stock service (includes locking)
+            Log::info('Processing cart items with stock deduction');
             $this->processCartItems($request->cart_items, $sale->id);
             Log::info('Cart items processed successfully');
 
@@ -202,7 +195,7 @@ class PosController extends Controller
                         'quantity' => $item->quantity,
                         'price' => $item->unit_price,
                         'subtotal' => $item->subtotal,
-                        'serial_number' => $item->serial_number // Include the saved serial number
+                        'serial_number' => $item->serial_number
                     ];
                 });
 
@@ -224,7 +217,7 @@ class PosController extends Controller
                 ] : null,
                 'receipt_data' => [
                     'date' => now()->format('Y-m-d H:i:s'),
-                    'items' => $saleItems, // Use the processed items with serial numbers
+                    'items' => $saleItems,
                     'total' => $totalAmount,
                     'payment_method' => $request->payment_method,
                     'customer' => [
@@ -289,7 +282,7 @@ class PosController extends Controller
                 return $customer;
             }
             
-            // Otherwise, create or find customer by phone (existing behavior)
+            // Otherwise, create or find customer by phone
             return Customer::firstOrCreate(
                 ['phone' => $customerDetails['phone']],
                 [
@@ -307,7 +300,7 @@ class PosController extends Controller
     {
         try {
             return Customer::firstOrCreate(
-                ['phone' => '0000000000'], // Default phone for walk-in customer
+                ['phone' => '0000000000'],
                 [
                     'name' => 'Walk-in Customer',
                     'status' => 'active'
@@ -317,13 +310,6 @@ class PosController extends Controller
             Log::error('Error creating walk-in customer: ' . $e->getMessage());
             throw new \Exception('Failed to create walk-in customer record');
         }
-    }
-
-    private function generateReceiptNumber()
-    {
-        $prefix = 'RCP-' . date('Ymd');
-        $random = strtoupper(Str::random(5));
-        return $prefix . '-' . $random;
     }
 
     private function calculateTotalAmount(array $cartItems)
@@ -345,41 +331,51 @@ class PosController extends Controller
 
     private function processCartItems(array $cartItems, int $saleId)
     {
+        // Prepare items for batch stock deduction
+        $stockItems = [];
+        
         foreach ($cartItems as $item) {
-            $product = Product::findOrFail($item['id']);
-
-            // Verify stock availability
-            if ($product->stock < $item['quantity']) {
-                throw new \Exception("Insufficient stock for {$product->name}");
+            $serialNumber = null;
+            if (isset($item['serial_number']) && !empty($item['serial_number'])) {
+                $serialNumber = $item['serial_number'];
             }
 
-            try {
-                // Use the serial number from the item if available, otherwise use it from the product
-                // If neither has a serial number, leave it null (field is now nullable)
+            $stockItems[] = [
+                'product_id' => $item['id'],
+                'quantity' => $item['quantity'],
+                'unit_price' => $item['price'],
+                'serial_number' => $serialNumber
+            ];
+        }
+
+        try {
+            // Deduct stock for all items at once with locking
+            $this->stockService->deductMultipleStock(
+                $stockItems,
+                'sale',
+                $saleId,
+                'Stock deducted from POS sale #{$saleId} - Product: {product_name}, Qty: {quantity}'
+            );
+
+            // Create sale items
+            foreach ($cartItems as $item) {
                 $serialNumber = null;
                 if (isset($item['serial_number']) && !empty($item['serial_number'])) {
                     $serialNumber = $item['serial_number'];
-                } elseif (isset($product->serial_number) && !empty($product->serial_number)) {
-                    $serialNumber = $product->serial_number;
                 }
 
                 SaleItem::create([
                     'sale_id' => $saleId,
-                    'product_id' => $product->id,
+                    'product_id' => $item['id'],
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['price'],
                     'subtotal' => $item['price'] * $item['quantity'],
                     'serial_number' => $serialNumber
                 ]);
-
-                // Update product stock
-                $product->decrement('stock', $item['quantity']);
-            } catch (\Exception $e) {
-                Log::error('Error processing cart item: ' . $e->getMessage());
-                Log::error('Item data: ' . json_encode($item));
-                Log::error('Product data: ' . json_encode($product->toArray()));
-                throw new \Exception('Failed to process cart item: ' . $e->getMessage());
             }
+        } catch (\Exception $e) {
+            Log::error('Error processing cart items: ' . $e->getMessage());
+            throw $e;
         }
     }
 
@@ -401,12 +397,13 @@ class PosController extends Controller
                 'quantity' => 'required|integer|min:1'
             ]);
 
-            $product = Product::findOrFail($request->product_id);
+            $hasStock = $this->stockService->hasStock($request->product_id, $request->quantity);
+            $currentStock = $this->stockService->getCurrentStock($request->product_id);
             
             return response()->json([
                 'success' => true,
-                'available' => $product->stock >= $request->quantity,
-                'current_stock' => $product->stock
+                'available' => $hasStock,
+                'current_stock' => $currentStock
             ]);
         } catch (\Exception $e) {
             Log::error('Error checking stock: ' . $e->getMessage());
@@ -417,60 +414,6 @@ class PosController extends Controller
         }
     }
 
-    public function debugSale(Request $request)
-    {
-        try {
-            // Sample cart items
-            $cartItems = [
-                [
-                    'id' => 1, // Replace with an actual product ID
-                    'quantity' => 1,
-                    'price' => 10.00
-                ]
-            ];
-
-            // Begin transaction
-            DB::beginTransaction();
-
-            // Get default customer
-            $customer = $this->getOrCreateWalkInCustomer();
-
-            // Generate receipt number
-            $receiptNumber = $this->generateReceiptNumber();
-
-            // Calculate total amount
-            $totalAmount = $this->calculateTotalAmount($cartItems);
-
-            // Create sale record
-            $sale = $this->createSaleRecord([
-                'user_id' => auth()->id(),
-                'customer_id' => $customer->id,
-                'receipt_number' => $receiptNumber,
-                'total_amount' => $totalAmount,
-                'payment_method' => 'cash',
-                'payment_status' => 'paid',
-                'status' => 'completed'
-            ]);
-
-            // Process cart items
-            $this->processCartItems($cartItems, $sale->id);
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Debug sale successful'
-            ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-        }
-    }
-    
     /**
      * Get cylinder transaction statistics for POS dashboard
      */

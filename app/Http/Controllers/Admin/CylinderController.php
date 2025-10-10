@@ -7,7 +7,8 @@ use App\Models\CylinderTransaction;
 use App\Models\CylinderTransactionItem;
 use App\Models\Customer;
 use App\Models\Product;
-use App\Models\StockMovement;
+use App\Services\StockService;
+use App\Services\ReferenceNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,15 @@ use Illuminate\Support\Facades\Log;
 
 class CylinderController extends Controller
 {
+    protected $stockService;
+    protected $referenceNumberService;
+
+    public function __construct(StockService $stockService, ReferenceNumberService $referenceNumberService)
+    {
+        $this->stockService = $stockService;
+        $this->referenceNumberService = $referenceNumberService;
+    }
+
     public function index(Request $request)
     {
         $query = CylinderTransaction::with(['customer', 'createdBy', 'completedBy', 'items.product.category'])
@@ -112,16 +122,12 @@ class CylinderController extends Controller
                 ]);
             }
 
-            // Verify stock availability for all items
+            // Calculate total and prepare items
             $totalAmount = 0;
             $itemsData = [];
             
             foreach ($request->items as $item) {
                 $product = Product::findOrFail($item['product_id']);
-                
-                if ($product->stock < $item['quantity']) {
-                    throw new \Exception("Insufficient stock for {$product->name}. Available: {$product->stock}, Requested: {$item['quantity']}");
-                }
                 
                 $subtotal = $product->price * $item['quantity'];
                 $totalAmount += $subtotal;
@@ -135,13 +141,17 @@ class CylinderController extends Controller
                 ];
             }
 
+            // Generate unique reference number with locking
+            $referenceNumber = $this->referenceNumberService->generateCylinderReference();
+
             // Create cylinder transaction
             $transaction = CylinderTransaction::create([
+                'reference_number' => $referenceNumber,
                 'customer_id' => $customer->id,
                 'customer_name' => $customer->name,
                 'customer_phone' => $customer->phone,
-                'cylinder_size' => null, // Not needed anymore
-                'cylinder_type' => null, // Not needed anymore
+                'cylinder_size' => null,
+                'cylinder_type' => null,
                 'transaction_type' => $request->transaction_type,
                 'payment_status' => $request->payment_status,
                 'amount' => $totalAmount,
@@ -169,16 +179,31 @@ class CylinderController extends Controller
                 $customer->increment('balance', $totalWithDeposit);
             }
 
-            // Deduct inventory immediately for ALL transactions (both drop-off and advance collection)
-            // Once a transaction is created, the stock is no longer available for sale
-            $this->deductInventoryForTransaction($transaction);
+            // Deduct inventory immediately for ALL transactions using StockService
+            // Stock is no longer available once cylinders are out (either for refill or with customer)
+            $stockItems = [];
+            foreach ($transaction->items as $item) {
+                $stockItems[] = [
+                    'product_id' => $item->product_id,
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->unit_price,
+                    'serial_number' => null
+                ];
+            }
+
+            $transactionType = $transaction->isDropOff() ? 'drop-off' : 'advance collection';
+            $this->stockService->deductMultipleStock(
+                $stockItems,
+                'cylinder_transaction',
+                $transaction->id,
+                "Stock deducted - Cylinder {$transactionType} transaction #{$transaction->id} (Ref: {$transaction->reference_number}, Customer: {$transaction->customer_name}, Product: {product_name}, Qty: {quantity})"
+            );
 
             DB::commit();
 
             $isPosContext = $request->route() && str_starts_with($request->route()->getName(), 'pos.');
             $receiptRoute = $isPosContext ? 'pos.cylinders.receipt' : 'admin.cylinders.receipt';
 
-            // Return JSON response with transaction ID for redirect to receipt
             return response()->json([
                 'success' => true,
                 'message' => 'Cylinder transaction created successfully with ' . count($itemsData) . ' item(s)!',
@@ -193,7 +218,6 @@ class CylinderController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
             
-            // Return JSON response for AJAX requests
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json([
                     'success' => false,
@@ -234,17 +258,18 @@ class CylinderController extends Controller
             ];
 
             if ($cylinder->isDropOff()) {
+                // Drop-off completion: customer is collecting the refilled cylinders
                 $updates['collection_date'] = now();
                 
                 if ($request->filled('payment_status')) {
                     $updates['payment_status'] = $request->payment_status;
                 }
 
-                // Inventory already deducted when transaction was created
-                // No need to deduct again
+                // Inventory was already deducted when transaction was created
+                // No stock changes needed on completion
 
             } else {
-                // Advance collection - customer returning empty cylinders
+                // Advance collection completion: customer returning empty cylinders
                 $updates['return_date'] = now();
 
                 // Process refund of deposit
@@ -252,13 +277,14 @@ class CylinderController extends Controller
                     $cylinder->customer->decrement('balance', $cylinder->deposit_amount);
                 }
 
-                // If payment was pending, mark as paid
+                // If payment was pending, mark as paid and adjust balance
                 if ($cylinder->isPending()) {
                     $updates['payment_status'] = 'paid';
                     $cylinder->customer->decrement('balance', $cylinder->amount);
                 }
                 
-                // Inventory already deducted when transaction was created
+                // Inventory was already deducted when transaction was created
+                // No stock changes needed on completion
             }
 
             $cylinder->update($updates);
@@ -297,8 +323,24 @@ class CylinderController extends Controller
                 $cylinder->customer->decrement('balance', $totalAmount);
             }
 
-            // Restore inventory if it was deducted
-            $this->restoreInventoryForTransaction($cylinder);
+            // Restore inventory using StockService
+            $stockItems = [];
+            foreach ($cylinder->items as $item) {
+                $stockItems[] = [
+                    'product_id' => $item->product_id,
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->unit_price,
+                    'serial_number' => null
+                ];
+            }
+
+            $transactionType = $cylinder->isDropOff() ? 'drop-off' : 'advance collection';
+            $this->stockService->restoreMultipleStock(
+                $stockItems,
+                'cylinder_cancellation',
+                $cylinder->id,
+                "Stock restored - Cylinder {$transactionType} transaction #{$cylinder->id} cancelled (Ref: {$cylinder->reference_number}, Customer: {$cylinder->customer_name}, Product: {product_name}, Qty: {quantity})"
+            );
 
             $cylinder->update([
                 'status' => 'cancelled',
@@ -332,8 +374,24 @@ class CylinderController extends Controller
                 $cylinder->customer->decrement('balance', $totalAmount);
             }
 
-            // Restore inventory if it was deducted
-            $this->restoreInventoryForTransaction($cylinder);
+            // Restore inventory using StockService
+            $stockItems = [];
+            foreach ($cylinder->items as $item) {
+                $stockItems[] = [
+                    'product_id' => $item->product_id,
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->unit_price,
+                    'serial_number' => null
+                ];
+            }
+
+            $transactionType = $cylinder->isDropOff() ? 'drop-off' : 'advance collection';
+            $this->stockService->restoreMultipleStock(
+                $stockItems,
+                'cylinder_cancellation',
+                $cylinder->id,
+                "Stock restored - Cylinder {$transactionType} transaction #{$cylinder->id} deleted (Ref: {$cylinder->reference_number}, Customer: {$cylinder->customer_name}, Product: {product_name}, Qty: {quantity})"
+            );
 
             $cylinder->delete();
 
@@ -370,123 +428,5 @@ class CylinderController extends Controller
     {
         $cylinder->load(['customer', 'items.product.category', 'createdBy']);
         return view('admin.cylinders.receipt', compact('cylinder'));
-    }
-
-    /**
-     * Deduct inventory for all items in a transaction
-     */
-    private function deductInventoryForTransaction(CylinderTransaction $transaction)
-    {
-        try {
-            foreach ($transaction->items as $item) {
-                $product = Product::findOrFail($item->product_id);
-
-                // Verify stock availability
-                if ($product->stock < $item->quantity) {
-                    throw new \Exception("Insufficient stock for {$product->name}. Available: {$product->stock}, Required: {$item->quantity}");
-                }
-
-                // Deduct stock
-                $product->decrement('stock', $item->quantity);
-
-                // Create stock movement record
-                StockMovement::create([
-                    'product_id' => $product->id,
-                    'type' => 'out',
-                    'quantity' => $item->quantity,
-                    'unit_price' => $item->unit_price,
-                    'reference_type' => 'cylinder_transaction',
-                    'reference_id' => $transaction->id,
-                    'notes' => $this->generateStockMovementNote($transaction, $product, $item->quantity, 'deduct'),
-                    'created_by' => Auth::id()
-                ]);
-
-                Log::info('Inventory deducted for cylinder transaction', [
-                    'transaction_id' => $transaction->id,
-                    'product_id' => $product->id,
-                    'quantity' => $item->quantity,
-                    'new_stock' => $product->stock
-                ]);
-            }
-
-        } catch (\Exception $e) {
-            Log::error('Error deducting inventory for cylinder: ' . $e->getMessage());
-            throw $e;
-        }
-    }
-
-    /**
-     * Restore inventory for all items in a cancelled transaction
-     */
-    private function restoreInventoryForTransaction(CylinderTransaction $transaction)
-    {
-        try {
-            // Since inventory is now ALWAYS deducted when transaction is created,
-            // we need to restore it when cancelling UNLESS the transaction was already completed
-            if ($transaction->isCompleted()) {
-                // Don't restore inventory for completed transactions
-                return;
-            }
-
-            foreach ($transaction->items as $item) {
-                $product = Product::findOrFail($item->product_id);
-
-                // Restore stock
-                $product->increment('stock', $item->quantity);
-
-                // Create stock movement record
-                StockMovement::create([
-                    'product_id' => $product->id,
-                    'type' => 'in',
-                    'quantity' => $item->quantity,
-                    'unit_price' => $item->unit_price,
-                    'reference_type' => 'cylinder_cancellation',
-                    'reference_id' => $transaction->id,
-                    'notes' => $this->generateStockMovementNote($transaction, $product, $item->quantity, 'restore'),
-                    'created_by' => Auth::id()
-                ]);
-
-                Log::info('Inventory restored for cancelled cylinder transaction', [
-                    'transaction_id' => $transaction->id,
-                    'product_id' => $product->id,
-                    'quantity' => $item->quantity,
-                    'new_stock' => $product->stock
-                ]);
-            }
-
-        } catch (\Exception $e) {
-            Log::error('Error restoring inventory for cylinder: ' . $e->getMessage());
-            throw $e;
-        }
-    }
-
-    /**
-     * Generate descriptive note for stock movement
-     */
-    private function generateStockMovementNote(CylinderTransaction $transaction, Product $product, int $quantity, string $action)
-    {
-        $transactionType = $transaction->isDropOff() ? 'drop-off' : 'advance collection';
-        
-        if ($action === 'deduct') {
-            return sprintf(
-                'Stock deducted - Cylinder %s transaction #%d created (Ref: %s, Customer: %s, Product: %s, Qty: %d)',
-                $transactionType,
-                $transaction->id,
-                $transaction->reference_number,
-                $transaction->customer_name,
-                $product->name,
-                $quantity
-            );
-        } else {
-            return sprintf(
-                'Stock restored - Cylinder %s transaction #%d cancelled (Ref: %s, Customer: %s, Product: %s, Qty: %d)',
-                $transactionType,
-                $transaction->id,
-                $transaction->reference_number,
-                $transaction->customer_name,
-                $product->name,
-                $quantity
-            );
-        }
     }
 }

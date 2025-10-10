@@ -4,6 +4,10 @@ function enhancedPosSystem() {
         // State management
         products: [],
         filteredProducts: [],
+        
+        // Inventory card data
+        inventorySearch: '',
+        filteredInventoryList: [],
         cart: [],
         categories: window.posCategories || [],
         searchQuery: '',
@@ -50,6 +54,9 @@ function enhancedPosSystem() {
                 this.setupOfflineHandlers();
                 this.checkSyncStatus();
             }
+            
+            // Initialize filtered inventory list
+            this.filteredInventoryList = this.products;
             
             // Setup event listeners
             this.$watch('searchQuery', () => this.filterProducts());
@@ -137,6 +144,29 @@ function enhancedPosSystem() {
             } catch (error) {
                 console.error('Error forcing sync:', error);
                 this.showNotification('Sync failed. Please try again.', 'error');
+            }
+        },
+
+        // Refresh single product stock (for real-time updates)
+        async refreshProductStock(productId) {
+            try {
+                const response = await fetch(`/api/v1/products/${productId}/stock`, {
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const product = this.products.find(p => p.id === productId);
+                    if (product && data.stock !== undefined) {
+                        product.stock = data.stock;
+                        console.log(`Refreshed ${product.name} stock: ${data.stock}`);
+                        this.filterProducts();
+                    }
+                }
+            } catch (error) {
+                console.error('Error refreshing product stock:', error);
             }
         },
 
@@ -350,6 +380,9 @@ function enhancedPosSystem() {
                     }
                 }
                 
+                // Update product stock in UI immediately
+                this.updateProductStockAfterSale();
+                
                 // Show receipt
                 this.showReceipt = true;
                 
@@ -369,6 +402,21 @@ function enhancedPosSystem() {
             } finally {
                 this.isProcessing = false;
             }
+        },
+
+        // Update product stock after sale
+        updateProductStockAfterSale() {
+            this.cart.forEach(cartItem => {
+                const product = this.products.find(p => p.id === cartItem.id);
+                if (product) {
+                    // Decrease stock by quantity sold
+                    product.stock -= cartItem.quantity;
+                    console.log(`Updated ${product.name} stock: ${product.stock}`);
+                }
+            });
+            
+            // Re-filter products to update the display
+            this.filterProducts();
         },
 
         // Reset cart
@@ -485,6 +533,36 @@ function enhancedPosSystem() {
             await this.loadCustomers();
         },
 
+        // Filter inventory list for floating card
+        filterInventoryList() {
+            if (!this.inventorySearch || this.inventorySearch.trim() === '') {
+                this.filteredInventoryList = this.products;
+            } else {
+                const query = this.inventorySearch.toLowerCase();
+                this.filteredInventoryList = this.products.filter(product =>
+                    product.name.toLowerCase().includes(query) ||
+                    (product.sku && product.sku.toLowerCase().includes(query))
+                );
+            }
+        },
+
+        // Scroll to product in main grid
+        scrollToProduct(productId) {
+            const productCards = document.querySelectorAll('.product-card');
+            const productCard = Array.from(productCards).find(card => {
+                const productData = this.filteredProducts.find(p => p.id === productId);
+                return productData && card.querySelector('[x-text="product.name"]')?.textContent === productData.name;
+            });
+            
+            if (productCard) {
+                productCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                productCard.classList.add('ring-2', 'ring-orange-500');
+                setTimeout(() => {
+                    productCard.classList.remove('ring-2', 'ring-orange-500');
+                }, 2000);
+            }
+        },
+
         // Show notification
         showNotification(message, type = 'info') {
             // Create a toast notification
@@ -514,6 +592,10 @@ function enhancedPosSystem() {
         },
 
         // Computed properties
+        get totalInventoryStock() {
+            return this.products.reduce((total, product) => total + (product.stock || 0), 0);
+        },
+        
         get canCheckout() {
             if (this.cart.length === 0) return false;
             if (this.isProcessing) return false;

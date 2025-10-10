@@ -13,10 +13,12 @@ class StockMovement extends Model
         'product_id',
         'type',
         'quantity',
+        'unit_price',
         'reference_type',
         'reference_id',
-        'user_id',
         'notes',
+        'serial_number',
+        'created_by', // Standardized field name
     ];
 
     /**
@@ -29,18 +31,19 @@ class StockMovement extends Model
 
     /**
      * Get the user who created the stock movement.
-     */
-    public function user()
-    {
-        return $this->belongsTo(User::class);
-    }
-
-    /**
-     * Get the creator of the stock movement (alias for user).
+     * Using 'created_by' as the standard field name
      */
     public function creator()
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Alias for creator() for backward compatibility
+     */
+    public function user()
+    {
+        return $this->creator();
     }
 
     /**

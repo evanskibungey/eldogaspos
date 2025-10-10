@@ -120,6 +120,112 @@
                         </span>
                     </a>
 
+                    <!-- Quick Stock Overview - Fixed position below POS Terminal -->
+                    @if(request()->routeIs('pos.dashboard'))
+                    <div class="mt-3 mb-3">
+                        <div class="bg-gray-800/50 rounded-lg p-3 border border-orange-500/30">
+                            <!-- Stock Summary Header -->
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                            d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                                    </svg>
+                                    <span class="text-xs text-gray-300 font-medium">Live Inventory</span>
+                                </div>
+                                <span class="text-sm font-bold text-orange-400" id="sidebar-total-stock">--</span>
+                            </div>
+                            
+                            <!-- Search Inventory -->
+                            <input type="text" 
+                                id="sidebar-inventory-search"
+                                placeholder="Search stock..."
+                                class="w-full px-2 py-1.5 text-xs bg-gray-900 border border-gray-700 rounded text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 mb-2">
+                            
+                            <!-- Stock List -->
+                            <div id="sidebar-stock-list" class="space-y-1 max-h-48 overflow-y-auto">
+                                <div class="text-center text-gray-500 text-xs py-2">Loading inventory...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <script>
+                    // Sync with POS Dashboard inventory data
+                    document.addEventListener('alpine:initialized', () => {
+                        const posData = window.Alpine?.$data(document.querySelector('[x-data="enhancedPosSystem()"]'));
+                        
+                        if (posData) {
+                            // Update total stock
+                            const updateStockDisplay = () => {
+                                const totalStockEl = document.getElementById('sidebar-total-stock');
+                                if (totalStockEl && posData.totalInventoryStock !== undefined) {
+                                    totalStockEl.textContent = posData.totalInventoryStock;
+                                }
+                                
+                                // Update stock list
+                                const stockList = document.getElementById('sidebar-stock-list');
+                                if (stockList && posData.filteredProducts) {
+                                    const products = posData.filteredProducts.slice(0, 10); // Show first 10
+                                    
+                                    if (products.length === 0) {
+                                        stockList.innerHTML = '<div class="text-center text-gray-500 text-xs py-2">No products found</div>';
+                                    } else {
+                                        stockList.innerHTML = products.map(product => {
+                                            const stockClass = product.stock > product.min_stock ? 'text-green-400' : 
+                                                              product.stock > 0 ? 'text-orange-400' : 'text-red-400';
+                                            return `
+                                                <div class="flex items-center justify-between py-1.5 px-2 hover:bg-gray-700/50 rounded cursor-pointer transition-colors" 
+                                                     onclick="document.getElementById('product-${product.id}')?.scrollIntoView({behavior: 'smooth', block: 'center'})">
+                                                    <span class="text-xs text-gray-300 truncate flex-1" title="${product.name}">${product.name}</span>
+                                                    <span class="text-xs font-semibold ${stockClass} ml-2">${product.stock}</span>
+                                                </div>
+                                            `;
+                                        }).join('');
+                                    }
+                                }
+                            };
+                            
+                            // Initial update
+                            updateStockDisplay();
+                            
+                            // Watch for changes
+                            setInterval(updateStockDisplay, 2000);
+                            
+                            // Search functionality
+                            const searchInput = document.getElementById('sidebar-inventory-search');
+                            if (searchInput) {
+                                searchInput.addEventListener('input', (e) => {
+                                    const query = e.target.value.toLowerCase();
+                                    const stockList = document.getElementById('sidebar-stock-list');
+                                    
+                                    if (!posData.products) return;
+                                    
+                                    const filtered = query ? 
+                                        posData.products.filter(p => p.name.toLowerCase().includes(query)).slice(0, 10) :
+                                        posData.filteredProducts.slice(0, 10);
+                                    
+                                    if (filtered.length === 0) {
+                                        stockList.innerHTML = '<div class="text-center text-gray-500 text-xs py-2">No products found</div>';
+                                    } else {
+                                        stockList.innerHTML = filtered.map(product => {
+                                            const stockClass = product.stock > product.min_stock ? 'text-green-400' : 
+                                                              product.stock > 0 ? 'text-orange-400' : 'text-red-400';
+                                            return `
+                                                <div class="flex items-center justify-between py-1.5 px-2 hover:bg-gray-700/50 rounded cursor-pointer transition-colors"
+                                                     onclick="document.getElementById('product-${product.id}')?.scrollIntoView({behavior: 'smooth', block: 'center'})">
+                                                    <span class="text-xs text-gray-300 truncate flex-1" title="${product.name}">${product.name}</span>
+                                                    <span class="text-xs font-semibold ${stockClass} ml-2">${product.stock}</span>
+                                                </div>
+                                            `;
+                                        }).join('');
+                                    }
+                                });
+                            }
+                        }
+                    });
+                    </script>
+                    @endif
+
                     <!-- SALES & OPERATIONS SECTION -->
                     <div class="menu-separator"></div>
                     <div class="menu-section-title">Sales & Operations</div>
@@ -269,6 +375,16 @@
                     <!-- ANALYTICS SECTION -->
                     <div class="menu-separator"></div>
                     <div class="menu-section-title">Analytics</div>
+
+                    <!-- View Reports -->
+                    <a href="{{ route('pos.sales.history') }}"
+                        class="group flex items-center px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-lg {{ request()->routeIs('pos.sales.history') ? 'bg-gray-800 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white' }}">
+                        <svg class="h-5 w-5 mr-3 {{ request()->routeIs('pos.sales.history') ? 'text-orange-400' : 'text-gray-400 group-hover:text-orange-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        <span>View Reports</span>
+                    </a>
 
                     <!-- Reports & Analytics -->
                     <div>

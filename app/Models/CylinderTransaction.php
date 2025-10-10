@@ -192,26 +192,4 @@ class CylinderTransaction extends Model
 
         return Carbon::now()->diffInDays($this->drop_off_date);
     }
-
-    // Generate unique reference number
-    public static function generateReferenceNumber()
-    {
-        $prefix = 'CYL';
-        $date = now()->format('Ymd');
-        $count = self::whereDate('created_at', today())->count() + 1;
-        
-        return $prefix . $date . str_pad($count, 3, '0', STR_PAD_LEFT);
-    }
-
-    // Boot method to auto-generate reference number
-    protected static function boot()
-    {
-        parent::boot();
-
-        static::creating(function ($transaction) {
-            if (!$transaction->reference_number) {
-                $transaction->reference_number = self::generateReferenceNumber();
-            }
-        });
-    }
 }

@@ -18,11 +18,53 @@
         .product-card {
             transition: all 0.2s ease-in-out;
             height: 100%;
+            display: flex;
+            flex-direction: column;
         }
         
         .product-card:hover {
             transform: translateY(-3px);
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        /* Stock Level Display Styles */
+        .stock-level-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.375rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            gap: 0.375rem;
+            transition: all 0.2s ease;
+        }
+        
+        .stock-level-badge.high-stock {
+            background-color: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+        
+        .stock-level-badge.low-stock {
+            background-color: #fed7aa;
+            color: #92400e;
+            border: 1px solid #f59e0b;
+        }
+        
+        .stock-level-badge.out-of-stock {
+            background-color: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+        
+        .stock-icon {
+            width: 1rem;
+            height: 1rem;
+        }
+        
+        .stock-count {
+            font-weight: 700;
+            font-size: 0.875rem;
         }
         
         .image-container {
@@ -63,10 +105,14 @@
             position: absolute;
             top: 10px;
             right: 10px;
-            padding: 4px 8px;
-            border-radius: 9999px;
+            padding: 0.375rem 0.75rem;
+            border-radius: 0.375rem;
             font-size: 0.75rem;
             font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            z-index: 10;
         }
         
         .cart-item {
@@ -449,11 +495,14 @@
                             @endif
                         </a>
                         
-                        <a href="{{ route('pos.sales.history') }}" class="hidden md:flex items-center text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-100 transition-all">
-                            <svg class="w-4 h-4 mr-2 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        <!-- Inventory Overview -->
+                        <a href="{{ route('admin.products.index') }}" class="hidden md:flex items-center text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-100 transition-all">
+                            <svg class="w-4 h-4 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                             </svg>
-                            <span class="font-medium">View Reports</span>
+                            <span class="font-medium">Inventory</span>
+                            <span class="ml-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold rounded-full bg-purple-500 text-white" x-text="totalInventoryStock">
+                            </span>
                         </a>
                     </div>
 
@@ -728,7 +777,7 @@
                     <div x-show="!isLoading && filteredProducts.length > 0"
                         class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                         <template x-for="product in filteredProducts" :key="product.id">
-                            <div class="product-card bg-white rounded-lg shadow-sm border border-gray-100 flex flex-col overflow-hidden relative">
+                            <div :id="'product-' + product.id" class="product-card bg-white rounded-lg shadow-sm border border-gray-100 flex flex-col overflow-hidden relative">
                                 @if(config('offline.enabled'))
                                 <!-- Offline Available Badge -->
                                 <div x-show="!isOnline" class="offline-available-badge">
@@ -741,19 +790,40 @@
                                     <img :src="product.image" :alt="product.name"
                                         class="w-full h-52 object-contain p-4 transition-all">
                                     
-                                    <!-- Stock Badge -->
+                                    <!-- Stock Level Badge (Top Right Corner) -->
                                     <div class="stock-badge"
-                                        :class="product.stock > product.min_stock ? 'bg-green-100 text-green-800' : 
-                                               (product.stock > 0 ? 'bg-orange-100 text-orange-800' : 'bg-red-100 text-red-800')">
-                                        <template x-if="product.stock > product.min_stock">
-                                            <span>In Stock</span>
-                                        </template>
-                                        <template x-if="product.stock <= product.min_stock && product.stock > 0">
-                                            <span>Low Stock</span>
-                                        </template>
-                                        <template x-if="product.stock <= 0">
-                                            <span>Out of Stock</span>
-                                        </template>
+                                        :class="{
+                                            'bg-green-100 text-green-800 border border-green-200': product.stock > product.min_stock,
+                                            'bg-orange-100 text-orange-800 border border-orange-200': product.stock <= product.min_stock && product.stock > 0,
+                                            'bg-red-100 text-red-800 border border-red-200': product.stock <= 0
+                                        }">
+                                        <!-- Stock Icon -->
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <template x-if="product.stock > product.min_stock">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </template>
+                                            <template x-if="product.stock <= product.min_stock && product.stock > 0">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                            </template>
+                                            <template x-if="product.stock <= 0">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                                    d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </template>
+                                        </svg>
+                                        <!-- Stock Text -->
+                                        <span class="text-xs font-semibold">
+                                            <template x-if="product.stock > product.min_stock">
+                                                <span>In Stock (<span x-text="product.stock"></span>)</span>
+                                            </template>
+                                            <template x-if="product.stock <= product.min_stock && product.stock > 0">
+                                                <span>Low (<span x-text="product.stock"></span>)</span>
+                                            </template>
+                                            <template x-if="product.stock <= 0">
+                                                <span>Out</span>
+                                            </template>
+                                        </span>
                                     </div>
                                     
                                     <!-- Image Overlay with Add to Cart Button -->
@@ -775,16 +845,16 @@
                                     </div>
                                     
                                     <!-- Product Name -->
-                                    <h3 class="text-xs font-semibold text-gray-900 mb-2 leading-tight hover:text-orange-600 cursor-pointer" 
+                                    <h3 class="text-sm font-semibold text-gray-900 mb-2 leading-tight hover:text-orange-600 cursor-pointer" 
                                         @click="addToCart(product)" x-text="product.name"></h3>
                                     
                                     <div class="flex justify-between items-center mb-3 mt-auto">
-                                        <span class="font-bold text-xs text-orange-600 price-tag"
+                                        <span class="font-bold text-sm text-orange-600 price-tag"
                                             x-text="'KSh ' + product.price.toFixed(0)"></span>
                                         
                                         <!-- Quick Add Button -->
                                         <button @click="addToCart(product)" :disabled="product.stock <= 0"
-                                            class="bg-orange-500 text-white p-2 rounded-full hover:bg-orange-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed">
+                                            class="bg-orange-500 text-white p-2 rounded-full hover:bg-orange-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed shadow-sm">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                                     d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -812,14 +882,24 @@
                 <div class="w-80 bg-white shadow-md border-l border-gray-200 cart-wrapper">
                     <!-- Cart Header -->
                     <div class="p-3 border-b flex items-center justify-between bg-gradient-to-r from-gray-800 to-gray-900 text-white">
-                        <h2 class="text-lg font-bold flex items-center">
-                            <svg class="w-5 h-5 mr-2 text-orange-400" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                            </svg>
-                            Shopping Cart
-                        </h2>
+                        <div class="flex-1">
+                            <h2 class="text-lg font-bold flex items-center">
+                                <svg class="w-5 h-5 mr-2 text-orange-400" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                                Shopping Cart
+                            </h2>
+                            <div class="text-xs text-gray-300 mt-1 flex items-center">
+                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                                </svg>
+                                <span>Total Inventory: </span>
+                                <span class="font-semibold ml-1" x-text="totalInventoryStock"></span>
+                                <span class="ml-1">units</span>
+                            </div>
+                        </div>
                         <span x-show="cart.length > 0" 
                             class="bg-gradient-to-r from-orange-500 to-orange-600 text-white text-xs px-2 py-1 rounded-full flex items-center">
                             <span x-text="cart.length"></span>
@@ -1442,6 +1522,10 @@
 
                     // Products data
                     allProducts: @json($products ?? []),
+                    
+                    // Inventory card data
+                    inventorySearch: '',
+                    filteredInventoryList: [],
 
                     // Computed properties
                     get filteredProducts() {
@@ -1463,6 +1547,10 @@
                         }
 
                         return products;
+                    },
+
+                    get totalInventoryStock() {
+                        return this.allProducts.reduce((total, product) => total + (product.stock || 0), 0);
                     },
 
                     get canCheckout() {
@@ -1502,6 +1590,36 @@
                         return 'Offline Mode';
                     },
 
+                    // Filter inventory list for floating card
+                    filterInventoryList() {
+                        if (!this.inventorySearch || this.inventorySearch.trim() === '') {
+                            this.filteredInventoryList = this.allProducts;
+                        } else {
+                            const query = this.inventorySearch.toLowerCase();
+                            this.filteredInventoryList = this.allProducts.filter(product =>
+                                product.name.toLowerCase().includes(query) ||
+                                (product.sku && product.sku.toLowerCase().includes(query))
+                            );
+                        }
+                    },
+
+                    // Scroll to product in main grid
+                    scrollToProduct(productId) {
+                        const productCards = document.querySelectorAll('.product-card');
+                        const productCard = Array.from(productCards).find(card => {
+                            const productData = this.filteredProducts.find(p => p.id === productId);
+                            return productData && card.querySelector('[x-text="product.name"]')?.textContent === productData.name;
+                        });
+                        
+                        if (productCard) {
+                            productCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            productCard.classList.add('ring-2', 'ring-orange-500');
+                            setTimeout(() => {
+                                productCard.classList.remove('ring-2', 'ring-orange-500');
+                            }, 2000);
+                        }
+                    },
+
                     // Initialize the POS system with conditional offline support
                     async init() {
                         console.log('Initializing POS System...');
@@ -1520,6 +1638,9 @@
 
                             // Reset state
                             this.resetSaleState();
+                            
+                            // Initialize inventory list
+                            this.filteredInventoryList = this.allProducts;
                             
                             this._initialized = true;
                             console.log('POS System initialized successfully');

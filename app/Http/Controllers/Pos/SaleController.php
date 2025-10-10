@@ -8,14 +8,20 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Customer;
 use App\Models\Setting;
-use App\Models\StockMovement;
+use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 class SaleController extends Controller
 {
+    protected $stockService;
+
+    public function __construct(StockService $stockService)
+    {
+        $this->stockService = $stockService;
+    }
+
     /**
      * Display the sales creation page.
      *
@@ -29,128 +35,6 @@ class SaleController extends Controller
         $companyName = setting('company_name', 'Our Store');
         
         return view('pos.sales.create', compact('products', 'currencySymbol', 'taxPercentage', 'companyName'));
-    }
-
-    /**
-     * Store a newly created sale in the database.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function store(Request $request)
-    {
-        Log::info('Sale store request:', $request->all());
-
-        try {
-            // Validate the request
-            Log::info('Validating request');
-            $validated = $request->validate([
-                'cart_items' => 'required|array',
-                'cart_items.*.id' => 'required|exists:products,id',
-                'cart_items.*.quantity' => 'required|integer|min:1',
-                'cart_items.*.price' => 'required|numeric|min:0',
-                'payment_method' => 'required|in:cash,credit',
-                'customer_details' => 'required_if:payment_method,credit',
-                'customer_details.name' => 'required_if:payment_method,credit|string',
-                'customer_details.phone' => 'required_if:payment_method,credit|string'
-            ]);
-            Log::info('Request validated successfully');
-
-            DB::beginTransaction();
-            Log::info('DB transaction started');
-
-            // Handle customer based on payment method
-            $customer = null;
-            if ($request->payment_method === 'credit') {
-                // For credit payment, create or get customer from provided details
-                Log::info('Processing credit payment, handling customer creation');
-                $customer = $this->handleCustomerCreation($request->customer_details);
-                Log::info('Customer created/found', ['customer_id' => $customer->id]);
-            } else {
-                // For cash payment, use default walk-in customer or create if doesn't exist
-                Log::info('Processing cash payment, using default walk-in customer');
-                $customer = $this->getOrCreateWalkInCustomer();
-                Log::info('Walk-in customer used', ['customer_id' => $customer->id]);
-            }
-
-            // Generate unique receipt number
-            $receiptNumber = $this->generateReceiptNumber();
-            Log::info('Receipt number generated', ['receipt_number' => $receiptNumber]);
-
-            // Calculate total amount
-            $totalAmount = $this->calculateTotalAmount($request->cart_items);
-            Log::info('Total amount calculated', ['total' => $totalAmount]);
-
-            // Create sale record
-            Log::info('Creating sale record');
-            $sale = $this->createSaleRecord([
-                'user_id' => auth()->id(),
-                'customer_id' => $customer->id, // Always associate a customer
-                'receipt_number' => $receiptNumber,
-                'total_amount' => $totalAmount,
-                'payment_method' => $request->payment_method,
-                'payment_status' => $request->payment_method === 'cash' ? 'paid' : 'pending',
-                'status' => 'completed'
-            ]);
-            Log::info('Sale record created', ['sale_id' => $sale->id]);
-
-            // Process cart items
-            Log::info('Processing cart items');
-            $this->processCartItems($request->cart_items, $sale->id);
-            Log::info('Cart items processed successfully');
-
-            // Update customer balance for credit sales
-            if ($request->payment_method === 'credit') {
-                Log::info('Updating customer balance');
-                $this->updateCustomerBalance($customer, $totalAmount);
-                Log::info('Customer balance updated');
-            }
-
-            DB::commit();
-            Log::info('DB transaction committed');
-
-            Log::info('Sale completed successfully', ['receipt_number' => $receiptNumber]);
-
-            $currencySymbol = setting('currency_symbol', '$');
-            $companyName = setting('company_name', 'Our Store');
-            $receiptFooter = setting('receipt_footer', 'Thank you for your business!');
-
-            return response()->json([
-                'success' => true,
-                'receipt_number' => $receiptNumber,
-                'message' => 'Sale completed successfully',
-                'sale_id' => $sale->id,
-                'receipt_data' => [
-                    'company_name' => $companyName,
-                    'currency_symbol' => $currencySymbol,
-                    'date' => now()->format('Y-m-d H:i:s'),
-                    'items' => $request->cart_items,
-                    'total' => $totalAmount,
-                    'payment_method' => $request->payment_method,
-                    'receipt_footer' => $receiptFooter,
-                    'customer' => [
-                        'name' => $customer->name,
-                        'phone' => $customer->phone
-                    ]
-                ]
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            DB::rollBack();
-            Log::error('Validation error in sale:', $e->errors());
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation error',
-                'errors' => $e->errors()
-            ], 422);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error in sale: ' . $e->getMessage());
-            Log::error('Error stack trace: ' . $e->getTraceAsString());
-            return response()->json([
-                'success' => false,
-                'message' => 'An error occurred while processing the sale: ' . $e->getMessage()
-            ], 500);
-        }
     }
 
     /**
@@ -248,24 +132,24 @@ class SaleController extends Controller
             $sale->status = 'voided';
             $sale->save();
             
-            // Return items to inventory and create stock movement records
+            // Prepare items for batch stock restoration
+            $stockItems = [];
             foreach ($sale->items as $item) {
-                $product = $item->product;
-                $product->increment('stock', $item->quantity);
-                
-                // Create stock movement record for the void
-                StockMovement::create([
-                    'product_id' => $product->id,
-                    'type' => 'in',
+                $stockItems[] = [
+                    'product_id' => $item->product_id,
                     'quantity' => $item->quantity,
                     'unit_price' => $item->unit_price,
-                    'reference_type' => 'sale_void',
-                    'reference_id' => $sale->id,
-                    'notes' => 'Stock returned from voided sale #' . $sale->id . ' (Receipt: ' . $sale->receipt_number . ')',
-                    'serial_number' => $item->serial_number,
-                    'created_by' => auth()->id()
-                ]);
+                    'serial_number' => $item->serial_number
+                ];
             }
+
+            // Restore stock using stock service
+            $this->stockService->restoreMultipleStock(
+                $stockItems,
+                'sale_void',
+                $sale->id,
+                'Stock returned from voided sale #' . $sale->id . ' (Receipt: ' . $sale->receipt_number . ') - Product: {product_name}, Qty: {quantity}'
+            );
             
             // If this was a credit sale, adjust customer balance
             if ($sale->payment_method === 'credit' && $sale->customer) {
@@ -281,170 +165,6 @@ class SaleController extends Controller
             Log::error('Error voiding sale: ' . $e->getMessage());
             
             return back()->with('error', 'Error voiding sale: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Create or retrieve an existing customer.
-     *
-     * @param  array  $customerDetails
-     * @return \App\Models\Customer
-     */
-    private function handleCustomerCreation(array $customerDetails)
-    {
-        try {
-            return Customer::firstOrCreate(
-                ['phone' => $customerDetails['phone']],
-                [
-                    'name' => $customerDetails['name'],
-                    'status' => 'active'
-                ]
-            );
-        } catch (\Exception $e) {
-            Log::error('Error creating customer: ' . $e->getMessage());
-            throw new \Exception('Failed to create customer record');
-        }
-    }
-
-    /**
-     * Get or create default walk-in customer.
-     *
-     * @return \App\Models\Customer
-     */
-    private function getOrCreateWalkInCustomer()
-    {
-        try {
-            return Customer::firstOrCreate(
-                ['phone' => '0000000000'], // Default phone for walk-in customer
-                [
-                    'name' => 'Walk-in Customer',
-                    'status' => 'active'
-                ]
-            );
-        } catch (\Exception $e) {
-            Log::error('Error creating walk-in customer: ' . $e->getMessage());
-            throw new \Exception('Failed to create walk-in customer record');
-        }
-    }
-
-    /**
-     * Generate a unique receipt number.
-     *
-     * @return string
-     */
-    private function generateReceiptNumber()
-    {
-        $prefix = 'RCP-' . date('Ymd');
-        $random = strtoupper(Str::random(5));
-        return $prefix . '-' . $random;
-    }
-
-    /**
-     * Calculate the total amount for the sale.
-     *
-     * @param  array  $cartItems
-     * @return float
-     */
-    private function calculateTotalAmount(array $cartItems)
-    {
-        $subtotal = collect($cartItems)->sum(function($item) {
-            return $item['price'] * $item['quantity'];
-        });
-        
-        // Apply tax if configured
-        $taxPercentage = (float)setting('tax_percentage', 0);
-        if ($taxPercentage > 0) {
-            $taxAmount = $subtotal * ($taxPercentage / 100);
-            return $subtotal + $taxAmount;
-        }
-        
-        return $subtotal;
-    }
-
-    /**
-     * Create the sale record in the database.
-     *
-     * @param  array  $saleData
-     * @return \App\Models\Sale
-     */
-    private function createSaleRecord(array $saleData)
-    {
-        try {
-            return Sale::create($saleData);
-        } catch (\Exception $e) {
-            Log::error('Error creating sale record: ' . $e->getMessage());
-            throw new \Exception('Failed to create sale record');
-        }
-    }
-
-    /**
-     * Process cart items and create sale items.
-     *
-     * @param  array  $cartItems
-     * @param  int  $saleId
-     * @return void
-     */
-    private function processCartItems(array $cartItems, int $saleId)
-    {
-        foreach ($cartItems as $item) {
-            $product = Product::findOrFail($item['id']);
-
-            // Verify stock availability
-            if ($product->stock < $item['quantity']) {
-                throw new \Exception("Insufficient stock for {$product->name}");
-            }
-
-            try {
-                // Use the serial number from the item if available, otherwise use it from the product
-                $serialNumber = isset($item['serial_number']) ? $item['serial_number'] : (isset($product->serial_number) ? $product->serial_number : null);
-
-                $saleItem = SaleItem::create([
-                    'sale_id' => $saleId,
-                    'product_id' => $product->id,
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['price'],
-                    'subtotal' => $item['price'] * $item['quantity'],
-                    'serial_number' => $serialNumber
-                ]);
-
-                // Update product stock
-                $product->decrement('stock', $item['quantity']);
-
-                // Create stock movement record for the sale
-                StockMovement::create([
-                    'product_id' => $product->id,
-                    'type' => 'out',
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['price'],
-                    'reference_type' => 'sale',
-                    'reference_id' => $saleId,
-                    'notes' => 'Stock deducted from POS sale #' . $saleId,
-                    'serial_number' => $serialNumber,
-                    'created_by' => auth()->id()
-                ]);
-            } catch (\Exception $e) {
-                Log::error('Error processing cart item: ' . $e->getMessage());
-                Log::error('Item data: ' . json_encode($item));
-                Log::error('Product data: ' . json_encode($product->toArray()));
-                throw new \Exception('Failed to process cart item: ' . $e->getMessage());
-            }
-        }
-    }
-
-    /**
-     * Update customer balance for credit sales.
-     *
-     * @param  \App\Models\Customer  $customer
-     * @param  float  $amount
-     * @return void
-     */
-    private function updateCustomerBalance(Customer $customer, float $amount)
-    {
-        try {
-            $customer->increment('balance', $amount);
-        } catch (\Exception $e) {
-            Log::error('Error updating customer balance: ' . $e->getMessage());
-            throw new \Exception('Failed to update customer balance');
         }
     }
 }
