@@ -14,107 +14,254 @@
         [x-cloak] { 
             display: none !important;
         }
-        /* Improved UI Styles */
+        /* ============================================
+           PROFESSIONAL PRODUCT CARD DESIGN
+           ============================================ */
+        
+        /* Product Grid Optimization */
+        .product-grid {
+            display: grid;
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        /* Responsive grid for POS screens */
+        @media (min-width: 640px) {
+            .product-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (min-width: 1024px) {
+            .product-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (min-width: 1280px) {
+            .product-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+        @media (min-width: 1536px) {
+            .product-grid { grid-template-columns: repeat(5, 1fr); }
+        }
+
+        /* Professional Product Card */
         .product-card {
-            transition: all 0.2s ease-in-out;
+            position: relative;
+            background: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #e5e7eb;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
             height: 100%;
             display: flex;
             flex-direction: column;
         }
         
         .product-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px -8px rgba(249, 115, 22, 0.2);
+            border-color: #fb923c;
+        }
+
+        /* Out of stock overlay */
+        .product-card.out-of-stock {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .product-card.out-of-stock::after {
+            content: 'OUT OF STOCK';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-15deg);
+            background: rgba(239, 68, 68, 0.95);
+            color: white;
+            padding: 0.5rem 2rem;
+            font-weight: 700;
+            font-size: 0.875rem;
+            letter-spacing: 0.05em;
+            border-radius: 4px;
+            z-index: 10;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
         
         /* Stock Level Display Styles */
-        .stock-level-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.375rem 0.75rem;
-            border-radius: 0.375rem;
-            font-size: 0.75rem;
-            font-weight: 600;
-            gap: 0.375rem;
-            transition: all 0.2s ease;
-        }
-        
-        .stock-level-badge.high-stock {
-            background-color: #d1fae5;
-            color: #065f46;
-            border: 1px solid #10b981;
-        }
-        
-        .stock-level-badge.low-stock {
-            background-color: #fed7aa;
-            color: #92400e;
-            border: 1px solid #f59e0b;
-        }
-        
-        .stock-level-badge.out-of-stock {
-            background-color: #fee2e2;
-            color: #991b1b;
-            border: 1px solid #ef4444;
-        }
-        
-        .stock-icon {
-            width: 1rem;
-            height: 1rem;
-        }
-        
-        .stock-count {
-            font-weight: 700;
-            font-size: 0.875rem;
-        }
-        
-        .image-container {
+        /* Image Section - Optimized */
+        .product-image-wrapper {
             position: relative;
+            width: 100%;
+            padding-top: 85%; /* Optimized aspect ratio for POS */
+            background: linear-gradient(to bottom, #f9fafb, #ffffff);
             overflow: hidden;
-            border-radius: 8px 8px 0 0;
-            background-color: #f9fafb;
         }
-        
-        .image-container img {
-            transition: transform 0.3s ease;
-        }
-        
-        .image-container:hover img {
-            transform: scale(1.05);
-        }
-        
-        .image-overlay {
+
+        .product-image {
             position: absolute;
             top: 0;
             left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: rgba(0, 0, 0, 0.3);
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 1rem;
+            transition: transform 0.3s ease;
+        }
+
+        .product-card:hover .product-image {
+            transform: scale(1.05);
+        }
+
+        /* Stock Badge - Modern & Sleek Design */
+        .stock-badge {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.625rem;
+            font-weight: 700;
+            z-index: 5;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+            border: 1px solid;
+        }
+
+        .stock-badge:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+        }
+
+        .stock-badge.high {
+            background: rgba(16, 185, 129, 0.15);
+            color: #059669;
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+
+        .stock-badge.low {
+            background: rgba(245, 158, 11, 0.15);
+            color: #d97706;
+            border-color: rgba(245, 158, 11, 0.3);
+        }
+
+        .stock-badge.out {
+            background: rgba(239, 68, 68, 0.15);
+            color: #dc2626;
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .stock-icon {
+            width: 0.75rem;
+            height: 0.75rem;
+            flex-shrink: 0;
+        }
+
+        .stock-text {
+            white-space: nowrap;
+            font-size: 0.625rem;
+            line-height: 1;
+        }
+
+        /* Offline Badge */
+        .offline-badge {
+            position: absolute;
+            top: 0.5rem;
+            left: 0.5rem;
+            background: rgba(99, 102, 241, 0.9);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.625rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            z-index: 5;
+            backdrop-filter: blur(8px);
+        }
+
+        /* Content Section - Clean Layout */
+        .product-content {
+            padding: 0.875rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            flex-grow: 1;
+        }
+
+        /* Product Name */
+        .product-name {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #111827;
+            line-height: 1.3;
+            margin: 0;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            min-height: 2.275em;
+        }
+
+        .product-card:hover .product-name {
+            color: #f97316;
+        }
+
+        /* Price and Action Row */
+        .product-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: auto;
+            padding-top: 0.5rem;
+            border-top: 1px solid #f3f4f6;
+        }
+
+        .product-price {
+            font-size: 1.125rem;
+            font-weight: 700;
+            color: #f97316;
+            letter-spacing: -0.025em;
+        }
+
+        /* Add to Cart Button - Simplified */
+        .add-to-cart-btn {
             display: flex;
             align-items: center;
             justify-content: center;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-            border-radius: 8px 8px 0 0;
+            width: 2.5rem;
+            height: 2.5rem;
+            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
+        }
+
+        .add-to-cart-btn:hover:not(:disabled) {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(249, 115, 22, 0.4);
+        }
+
+        .add-to-cart-btn:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+
+        .add-to-cart-btn:disabled {
+            background: #d1d5db;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .add-icon {
+            width: 1.25rem;
+            height: 1.25rem;
+            stroke-width: 2.5;
         }
         
-        .image-container:hover .image-overlay {
-            opacity: 1;
-        }
-        
-        .stock-badge {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            padding: 0.375rem 0.75rem;
-            border-radius: 0.375rem;
-            font-size: 0.75rem;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.375rem;
-            z-index: 10;
-        }
-        
+        /* Cart Item Styles */
         .cart-item {
             transition: all 0.2s ease;
         }
@@ -123,16 +270,7 @@
             background-color: #f9fafb;
         }
         
-        .price-tag {
-            position: relative;
-            display: inline-block;
-            padding: 0.25rem 0.5rem;
-            background-color: #fff;
-            border-radius: 0.25rem;
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            border: 1px solid rgba(249, 115, 22, 0.2);
-        }
-        
+        /* Category Pills */
         .category-pill {
             transition: all 0.2s ease;
         }
@@ -773,105 +911,73 @@
                         </button>
                     </div>
 
-                    <!-- Enhanced Product Grid -->
-                    <div x-show="!isLoading && filteredProducts.length > 0"
-                        class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    <!-- Professional Product Grid -->
+                    <div x-show="!isLoading && filteredProducts.length > 0" class="product-grid">
                         <template x-for="product in filteredProducts" :key="product.id">
-                            <div :id="'product-' + product.id" class="product-card bg-white rounded-lg shadow-sm border border-gray-100 flex flex-col overflow-hidden relative">
+                            <div :id="'product-' + product.id" 
+                                 class="product-card" 
+                                 :class="product.stock <= 0 ? 'out-of-stock' : ''"
+                                 @click="product.stock > 0 && addToCart(product)">
+                                
                                 @if(config('offline.enabled'))
-                                <!-- Offline Available Badge -->
-                                <div x-show="!isOnline" class="offline-available-badge">
-                                    Offline
-                                </div>
+                                <!-- Offline Badge -->
+                                <div x-show="!isOnline" class="offline-badge">Offline</div>
                                 @endif
                                 
-                                <!-- Clickable Image Container -->
-                                <div class="image-container cursor-pointer" @click="addToCart(product)">
-                                    <img :src="product.image" :alt="product.name"
-                                        class="w-full h-52 object-contain p-4 transition-all">
-                                    
-                                    <!-- Stock Level Badge (Top Right Corner) -->
-                                    <div class="stock-badge"
-                                        :class="{
-                                            'bg-green-100 text-green-800 border border-green-200': product.stock > product.min_stock,
-                                            'bg-orange-100 text-orange-800 border border-orange-200': product.stock <= product.min_stock && product.stock > 0,
-                                            'bg-red-100 text-red-800 border border-red-200': product.stock <= 0
-                                        }">
-                                        <!-- Stock Icon -->
-                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <template x-if="product.stock > product.min_stock">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </template>
-                                            <template x-if="product.stock <= product.min_stock && product.stock > 0">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                            </template>
-                                            <template x-if="product.stock <= 0">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                                    d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </template>
-                                        </svg>
-                                        <!-- Stock Text -->
-                                        <span class="text-xs font-semibold">
-                                            <template x-if="product.stock > product.min_stock">
-                                                <span>In Stock (<span x-text="product.stock"></span>)</span>
-                                            </template>
-                                            <template x-if="product.stock <= product.min_stock && product.stock > 0">
-                                                <span>Low (<span x-text="product.stock"></span>)</span>
-                                            </template>
-                                            <template x-if="product.stock <= 0">
-                                                <span>Out</span>
-                                            </template>
-                                        </span>
-                                    </div>
-                                    
-                                    <!-- Image Overlay with Add to Cart Button -->
-                                    <div class="image-overlay">
-                                        <button class="bg-white rounded-full p-3 shadow-lg transform transition-transform hover:scale-110"
-                                            :disabled="product.stock <= 0">
-                                            <svg class="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                <!-- Stock Badge - Modern Design -->
+                                <div class="stock-badge"
+                                     :class="{
+                                         'high': product.stock > product.min_stock,
+                                         'low': product.stock <= product.min_stock && product.stock > 0,
+                                         'out': product.stock <= 0
+                                     }">
+                                    <template x-if="product.stock > product.min_stock">
+                                        <span class="flex items-center gap-1">
+                                            <svg class="stock-icon" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
                                             </svg>
-                                        </button>
-                                    </div>
+                                            <span class="stock-text" x-text="product.stock"></span>
+                                        </span>
+                                    </template>
+                                    <template x-if="product.stock <= product.min_stock && product.stock > 0">
+                                        <span class="flex items-center gap-1">
+                                            <svg class="stock-icon" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                            </svg>
+                                            <span class="stock-text" x-text="product.stock"></span>
+                                        </span>
+                                    </template>
+                                    <template x-if="product.stock <= 0">
+                                        <span class="flex items-center gap-1">
+                                            <svg class="stock-icon" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                                            </svg>
+                                            <span class="stock-text">0</span>
+                                        </span>
+                                    </template>
                                 </div>
 
-                                <div class="p-4 flex-1 flex flex-col">
-                                    <!-- Category Tag -->
-                                    <div class="mb-2">
-                                        <span class="inline-block px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700" x-text="product.category_name"></span>
-                                    </div>
-                                    
+                                <!-- Image -->
+                                <div class="product-image-wrapper">
+                                    <img :src="product.image" :alt="product.name" class="product-image">
+                                </div>
+
+                                <!-- Content -->
+                                <div class="product-content">
                                     <!-- Product Name -->
-                                    <h3 class="text-sm font-semibold text-gray-900 mb-2 leading-tight hover:text-orange-600 cursor-pointer" 
-                                        @click="addToCart(product)" x-text="product.name"></h3>
+                                    <h3 class="product-name" x-text="product.name"></h3>
                                     
-                                    <div class="flex justify-between items-center mb-3 mt-auto">
-                                        <span class="font-bold text-sm text-orange-600 price-tag"
-                                            x-text="'KSh ' + product.price.toFixed(0)"></span>
-                                        
-                                        <!-- Quick Add Button -->
-                                        <button @click="addToCart(product)" :disabled="product.stock <= 0"
-                                            class="bg-orange-500 text-white p-2 rounded-full hover:bg-orange-600 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed shadow-sm">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                    <!-- Footer with Price and Add Button -->
+                                    <div class="product-footer">
+                                        <span class="product-price" x-text="'KSh ' + product.price.toFixed(0)"></span>
+                                        <button @click.stop="addToCart(product)" 
+                                                :disabled="product.stock <= 0"
+                                                class="add-to-cart-btn">
+                                            <svg class="add-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                             </svg>
                                         </button>
                                     </div>
-
-                                    <!-- Add to Cart Button -->
-                                    <button @click="addToCart(product)" :disabled="product.stock <= 0"
-                                        class="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-2 px-4 rounded-md text-sm font-medium flex items-center justify-center hover:from-orange-600 hover:to-orange-700 transition-all disabled:from-gray-300 disabled:to-gray-300 disabled:cursor-not-allowed">
-                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor"
-                                            viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                                        </svg>
-                                        Add to Cart
-                                    </button>
                                 </div>
                             </div>
                         </template>
@@ -1550,7 +1656,10 @@
                     },
 
                     get totalInventoryStock() {
-                        return this.allProducts.reduce((total, product) => total + (product.stock || 0), 0);
+                        return this.allProducts.reduce((total, product) => {
+                            const stock = parseInt(product.stock, 10) || 0;
+                            return total + stock;
+                        }, 0);
                     },
 
                     get canCheckout() {

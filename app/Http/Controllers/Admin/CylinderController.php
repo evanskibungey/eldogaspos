@@ -86,7 +86,7 @@ class CylinderController extends Controller
         $products = Product::where('status', 'active')
             ->where('stock', '>', 0)
             ->with('category')
-            ->orderBy('name')
+            ->orderBy('created_at', 'asc')
             ->get();
 
         return view('admin.cylinders.create', compact('customers', 'products'));
