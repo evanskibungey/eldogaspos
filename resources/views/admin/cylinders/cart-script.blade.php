@@ -17,8 +17,13 @@ function generateBrandInputs(quantity) {
     brandInputsContainer.innerHTML = '';
     for (let i = 1; i <= quantity; i++) {
         const div = document.createElement('div');
-        div.className = 'flex items-center gap-2';
-        div.innerHTML = `<span class="text-sm font-medium w-16">Unit ${i}:</span><input type="text" class="brand-input flex-1 px-3 py-2 border-2 rounded-lg text-sm" placeholder="Enter brand..." data-index="${i-1}">`;
+        div.className = 'flex items-center gap-2 p-2 sm:p-2.5 bg-white rounded-lg border-2 border-green-200 hover:border-green-400 transition-all';
+        div.innerHTML = `
+            <div class="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 bg-green-500 text-white rounded-lg flex items-center justify-center font-bold text-xs sm:text-sm">${i}</div>
+            <div class="flex-1 min-w-0">
+                <input type="text" class="brand-input w-full px-2 sm:px-3 py-1.5 sm:py-2 border-2 border-gray-200 rounded-lg text-xs sm:text-sm font-medium focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all" placeholder="Brand..." data-index="${i-1}">
+            </div>
+        `;
         brandInputsContainer.appendChild(div);
     }
 }
@@ -31,6 +36,26 @@ totalQuantityInput.addEventListener('input', function() {
         alert(`Maximum available: ${currentProductForBrand.stock}`);
         this.value = currentProductForBrand.stock;
         generateBrandInputs(currentProductForBrand.stock);
+    }
+});
+
+// Add increase/decrease quantity button handlers
+document.getElementById('increase-quantity')?.addEventListener('click', function() {
+    const currentQty = parseInt(totalQuantityInput.value) || 1;
+    const maxStock = currentProductForBrand?.stock || 999;
+    if (currentQty < maxStock) {
+        totalQuantityInput.value = currentQty + 1;
+        generateBrandInputs(currentQty + 1);
+    } else {
+        alert(`Maximum available: ${maxStock}`);
+    }
+});
+
+document.getElementById('decrease-quantity')?.addEventListener('click', function() {
+    const currentQty = parseInt(totalQuantityInput.value) || 1;
+    if (currentQty > 1) {
+        totalQuantityInput.value = currentQty - 1;
+        generateBrandInputs(currentQty - 1);
     }
 });
 
@@ -123,11 +148,11 @@ function renderCart() {
         return;
     }
     container.innerHTML = cart.map((item, index) => `
-        <div class="p-3 bg-gray-50 rounded-lg">
+        <div class="p-3 bg-gray-50 rounded-lg border border-gray-200">
             <div class="flex justify-between items-start mb-2">
                 <div class="flex-1">
-                    <p class="font-semibold text-sm">${item.name}</p>
-                    <p class="text-xs text-purple-600 font-medium">${item.brand}</p>
+                    <p class="font-semibold text-sm text-gray-900">${item.name}</p>
+                    <p class="text-xs text-orange-600 font-medium">${item.brand}</p>
                     <p class="text-xs text-gray-600">KSh ${item.price.toLocaleString()} each</p>
                 </div>
                 <button onclick="removeItem(${index})" class="text-red-600 hover:text-red-700">
@@ -135,10 +160,10 @@ function renderCart() {
                 </button>
             </div>
             <div class="flex items-center gap-2">
-                <button onclick="updateQty(${index}, -1)" class="px-3 py-1 bg-white border rounded hover:bg-gray-100">-</button>
-                <span class="w-12 text-center font-bold">${item.quantity}</span>
-                <button onclick="updateQty(${index}, 1)" class="px-3 py-1 bg-white border rounded hover:bg-gray-100">+</button>
-                <span class="ml-auto font-semibold">KSh ${(item.price * item.quantity).toLocaleString()}</span>
+                <button onclick="updateQty(${index}, -1)" class="px-3 py-1 bg-white border-2 border-gray-300 rounded hover:bg-orange-50 hover:border-orange-500 transition-all">-</button>
+                <span class="w-12 text-center font-bold text-gray-900">${item.quantity}</span>
+                <button onclick="updateQty(${index}, 1)" class="px-3 py-1 bg-white border-2 border-gray-300 rounded hover:bg-orange-50 hover:border-orange-500 transition-all">+</button>
+                <span class="ml-auto font-semibold text-orange-600">KSh ${(item.price * item.quantity).toLocaleString()}</span>
             </div>
         </div>
     `).join('');
