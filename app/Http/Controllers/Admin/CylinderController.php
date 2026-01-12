@@ -31,10 +31,11 @@ class CylinderController extends Controller
             ->orderBy('created_at', 'desc');
 
         $isPosContext = $request->route() && str_starts_with($request->route()->getName(), 'pos.');
-        
-        if ($isPosContext && !$request->filled('status')) {
+
+        // Show only active transactions by default (unless status filter is applied)
+        if (!$request->filled('status')) {
             $query->where('status', 'active');
-        } else if ($request->filled('status')) {
+        } else {
             $query->where('status', $request->status);
         }
 
@@ -60,13 +61,15 @@ class CylinderController extends Controller
 
         if ($isPosContext) {
             $stats = [
-                'active_drop_offs' => CylinderTransaction::active()->dropOffs()->count(),
+                'active_drop_offs_paid' => CylinderTransaction::active()->dropOffs()->paid()->count(),
+                'active_drop_offs_pending' => CylinderTransaction::active()->dropOffs()->pending()->count(),
                 'active_advance_collections' => CylinderTransaction::active()->advanceCollections()->count(),
                 'today_completed' => CylinderTransaction::whereDate('collection_date', today())->count(),
             ];
         } else {
             $stats = [
-                'active_drop_offs' => CylinderTransaction::active()->dropOffs()->count(),
+                'active_drop_offs_paid' => CylinderTransaction::active()->dropOffs()->paid()->count(),
+                'active_drop_offs_pending' => CylinderTransaction::active()->dropOffs()->pending()->count(),
                 'active_advance_collections' => CylinderTransaction::active()->advanceCollections()->count(),
                 'pending_payments' => CylinderTransaction::active()->pending()->count(),
                 'total_pending_amount' => CylinderTransaction::active()->pending()->sum('amount'),
@@ -75,6 +78,148 @@ class CylinderController extends Controller
         }
 
         return view('admin.cylinders.index', compact('transactions', 'stats'));
+    }
+
+    public function paidDropOffs(Request $request)
+    {
+        $period = $request->get('period', 'daily');
+        $isPosContext = $request->route() && str_starts_with($request->route()->getName(), 'pos.');
+
+        $query = CylinderTransaction::with(['customer', 'createdBy', 'completedBy', 'items.product.category'])
+            ->active()
+            ->dropOffs()
+            ->paid()
+            ->orderBy('created_at', 'desc');
+
+        // Apply date filter
+        $query = $this->applyDateFilter($query, $period);
+
+        $perPage = $isPosContext ? 15 : 20;
+        $transactions = $query->paginate($perPage);
+
+        $stats = $this->calculatePeriodStats($period);
+
+        return view('admin.cylinders.paid-drop-offs', compact('transactions', 'stats', 'period'));
+    }
+
+    public function unpaidDropOffs(Request $request)
+    {
+        $period = $request->get('period', 'daily');
+        $isPosContext = $request->route() && str_starts_with($request->route()->getName(), 'pos.');
+
+        $query = CylinderTransaction::with(['customer', 'createdBy', 'completedBy', 'items.product.category'])
+            ->active()
+            ->dropOffs()
+            ->pending()
+            ->orderBy('created_at', 'desc');
+
+        // Apply date filter
+        $query = $this->applyDateFilter($query, $period);
+
+        $perPage = $isPosContext ? 15 : 20;
+        $transactions = $query->paginate($perPage);
+
+        $stats = $this->calculatePeriodStats($period);
+
+        return view('admin.cylinders.unpaid-drop-offs', compact('transactions', 'stats', 'period'));
+    }
+
+    public function pendingPayments(Request $request)
+    {
+        $period = $request->get('period', 'daily');
+        $isPosContext = $request->route() && str_starts_with($request->route()->getName(), 'pos.');
+
+        $query = CylinderTransaction::with(['customer', 'createdBy', 'completedBy', 'items.product.category'])
+            ->active()
+            ->pending()
+            ->orderBy('created_at', 'desc');
+
+        // Apply date filter
+        $query = $this->applyDateFilter($query, $period);
+
+        $perPage = $isPosContext ? 15 : 20;
+        $transactions = $query->paginate($perPage);
+
+        $stats = $this->calculatePeriodStats($period);
+
+        return view('admin.cylinders.pending-payments', compact('transactions', 'stats', 'period'));
+    }
+
+    public function advanceCollections(Request $request)
+    {
+        $period = $request->get('period', 'daily');
+        $isPosContext = $request->route() && str_starts_with($request->route()->getName(), 'pos.');
+
+        $query = CylinderTransaction::with(['customer', 'createdBy', 'completedBy', 'items.product.category'])
+            ->active()
+            ->advanceCollections()
+            ->orderBy('created_at', 'desc');
+
+        // Apply date filter
+        $query = $this->applyDateFilter($query, $period);
+
+        $perPage = $isPosContext ? 15 : 20;
+        $transactions = $query->paginate($perPage);
+
+        $stats = $this->calculatePeriodStats($period);
+
+        return view('admin.cylinders.advance-collections', compact('transactions', 'stats', 'period'));
+    }
+
+    /**
+     * Apply date filter based on period (daily, weekly, monthly)
+     */
+    private function applyDateFilter($query, $period)
+    {
+        switch ($period) {
+            case 'weekly':
+                return $query->where('drop_off_date', '>=', now()->startOfWeek());
+            case 'monthly':
+                return $query->where('drop_off_date', '>=', now()->startOfMonth());
+            case 'daily':
+            default:
+                return $query->whereDate('drop_off_date', today());
+        }
+    }
+
+    /**
+     * Calculate statistics for the selected period
+     */
+    private function calculatePeriodStats($period)
+    {
+        $query = CylinderTransaction::active();
+
+        // Apply date filter
+        switch ($period) {
+            case 'weekly':
+                $query->where('drop_off_date', '>=', now()->startOfWeek());
+                break;
+            case 'monthly':
+                $query->where('drop_off_date', '>=', now()->startOfMonth());
+                break;
+            case 'daily':
+            default:
+                $query->whereDate('drop_off_date', today());
+                break;
+        }
+
+        return [
+            'total_cylinders_dropped' => $query->clone()->dropOffs()->count(),
+            'total_cylinders_collected' => CylinderTransaction::completed()
+                ->dropOffs()
+                ->when($period === 'weekly', fn($q) => $q->where('collection_date', '>=', now()->startOfWeek()))
+                ->when($period === 'monthly', fn($q) => $q->where('collection_date', '>=', now()->startOfMonth()))
+                ->when($period === 'daily', fn($q) => $q->whereDate('collection_date', today()))
+                ->count(),
+            'total_advance_collections' => $query->clone()->advanceCollections()->count(),
+            'paid_drop_offs' => $query->clone()->dropOffs()->paid()->count(),
+            'unpaid_drop_offs' => $query->clone()->dropOffs()->pending()->count(),
+            'pending_payments_count' => $query->clone()->pending()->count(),
+            'total_pending_amount' => $query->clone()->pending()->sum('amount'),
+            'total_pending_deposits' => $query->clone()->advanceCollections()->sum('deposit_amount'),
+            'period' => $period,
+            'period_label' => ucfirst($period),
+        ];
     }
 
     public function create()
@@ -236,6 +381,71 @@ class CylinderController extends Controller
         return view('admin.cylinders.show', compact('cylinder'));
     }
 
+    public function edit(CylinderTransaction $cylinder)
+    {
+        if (!$cylinder->isActive()) {
+            return redirect()->route('admin.cylinders.show', $cylinder)
+                ->with('error', 'Cannot edit completed or cancelled transaction.');
+        }
+
+        $cylinder->load(['customer', 'items.product.category']);
+        return view('admin.cylinders.edit', compact('cylinder'));
+    }
+
+    public function update(Request $request, CylinderTransaction $cylinder)
+    {
+        if (!$cylinder->isActive()) {
+            return redirect()->route('admin.cylinders.show', $cylinder)
+                ->with('error', 'Cannot edit completed or cancelled transaction.');
+        }
+
+        $request->validate([
+            'payment_status' => 'required|in:paid,pending',
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $oldPaymentStatus = $cylinder->payment_status;
+            $newPaymentStatus = $request->payment_status;
+
+            // Handle payment status changes for advance collections
+            if ($cylinder->isAdvanceCollection() && $oldPaymentStatus !== $newPaymentStatus) {
+                if ($oldPaymentStatus === 'pending' && $newPaymentStatus === 'paid') {
+                    // Changing from pending to paid: deduct amount from customer balance
+                    // (deposit was already added at creation, this is just the gas payment)
+                    $cylinder->customer->decrement('balance', $cylinder->amount);
+                } elseif ($oldPaymentStatus === 'paid' && $newPaymentStatus === 'pending') {
+                    // Changing from paid to pending: add amount back to customer balance
+                    $cylinder->customer->increment('balance', $cylinder->amount);
+                }
+            }
+
+            // Update the transaction
+            $cylinder->update([
+                'payment_status' => $newPaymentStatus,
+                'notes' => $request->notes,
+            ]);
+
+            DB::commit();
+
+            return redirect()->route('admin.cylinders.show', $cylinder)
+                ->with('success', 'Transaction updated successfully!');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Cylinder transaction update failed', [
+                'cylinder_id' => $cylinder->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return back()->withErrors(['error' => 'Failed to update transaction: ' . $e->getMessage()])
+                ->withInput();
+        }
+    }
+
     public function complete(Request $request, CylinderTransaction $cylinder)
     {
         if ($cylinder->isCompleted()) {
@@ -260,10 +470,13 @@ class CylinderController extends Controller
             if ($cylinder->isDropOff()) {
                 // Drop-off completion: customer is collecting the refilled cylinders
                 $updates['collection_date'] = now();
-                
+
+                // Allow updating payment status during completion
                 if ($request->filled('payment_status')) {
                     $updates['payment_status'] = $request->payment_status;
                 }
+                // Note: Payment status remains as-is if not specified
+                // This allows completing transactions even with pending payment
 
                 // Inventory was already deducted when transaction was created
                 // No stock changes needed on completion
@@ -282,7 +495,7 @@ class CylinderController extends Controller
                     $updates['payment_status'] = 'paid';
                     $cylinder->customer->decrement('balance', $cylinder->amount);
                 }
-                
+
                 // Inventory was already deducted when transaction was created
                 // No stock changes needed on completion
             }

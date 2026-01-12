@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php artisan migrate:fresh:*)",
+      "Bash(php artisan tinker:*)",
+      "Bash(mysql:*)",
+      "Bash(php artisan db:wipe:*)",
+      "Bash(rm:*)",
+      "Bash(php artisan migrate:*)",
+      "Bash(timeout 5 echo:*)",
+      "Bash(php:*)",
+      "Bash(git checkout:*)",
+      "Bash(grep:*)",
+      "Bash(cat:*)",
+      "Bash(dir /s /b C:xampphtdocseldogasposappModelsCylinder.php)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

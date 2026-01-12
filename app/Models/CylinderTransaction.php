@@ -192,4 +192,19 @@ class CylinderTransaction extends Model
 
         return Carbon::now()->diffInDays($this->drop_off_date);
     }
+
+    public function getAgeStatus()
+    {
+        $daysWaiting = $this->getDaysWaiting();
+
+        if ($daysWaiting < 7) {
+            return ['days' => $daysWaiting, 'status' => 'recent', 'color' => 'bg-green-100 text-green-800'];
+        } elseif ($daysWaiting < 14) {
+            return ['days' => $daysWaiting, 'status' => 'aging', 'color' => 'bg-yellow-100 text-yellow-800'];
+        } elseif ($daysWaiting < 30) {
+            return ['days' => $daysWaiting, 'status' => 'overdue', 'color' => 'bg-orange-100 text-orange-800'];
+        } else {
+            return ['days' => $daysWaiting, 'status' => 'critical', 'color' => 'bg-red-100 text-red-800'];
+        }
+    }
 }

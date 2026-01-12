@@ -292,13 +292,24 @@
                     @if($cylinder->isActive())
                         <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
                             <h3 class="text-lg font-medium text-gray-900 mb-4">Actions</h3>
-                            
+
+                            @if($cylinder->isPending())
+                                <div class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                    <p class="text-xs text-yellow-800 flex items-start">
+                                        <svg class="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                                        </svg>
+                                        <span><strong>Payment Pending:</strong> You can complete this transaction even if payment hasn't been received. Use the Edit button to update payment status later.</span>
+                                    </p>
+                                </div>
+                            @endif
+
                             <div class="space-y-3">
                                 <!-- Complete Transaction -->
-                                <form method="POST" action="{{ route($completeRoute, $cylinder) }}" 
-                                      onsubmit="return confirm('Are you sure you want to complete this transaction?')">
+                                <form method="POST" action="{{ route($completeRoute, $cylinder) }}"
+                                      onsubmit="return confirm('Mark this transaction as completed?\n\n{{ $cylinder->isPending() ? '⚠️ Payment is still pending. The transaction will be completed but payment status will remain unpaid.' : 'The customer has collected their cylinder.' }}')">
                                     @csrf
-                                    <button type="submit" 
+                                    <button type="submit"
                                             class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">
                                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>

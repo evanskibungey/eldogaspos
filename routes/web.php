@@ -89,6 +89,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/create', [AdminCylinderController::class, 'create'])->name('create');
             Route::post('/', [AdminCylinderController::class, 'store'])->name('store');
             Route::get('/search-customers', [AdminCylinderController::class, 'searchCustomers'])->name('search-customers');
+
+            // Filtered views
+            Route::get('/paid-drop-offs', [AdminCylinderController::class, 'paidDropOffs'])->name('paid-drop-offs');
+            Route::get('/unpaid-drop-offs', [AdminCylinderController::class, 'unpaidDropOffs'])->name('unpaid-drop-offs');
+            Route::get('/pending-payments', [AdminCylinderController::class, 'pendingPayments'])->name('pending-payments');
+            Route::get('/advance-collections', [AdminCylinderController::class, 'advanceCollections'])->name('advance-collections');
+
             Route::get('/{cylinder}/receipt', [AdminCylinderController::class, 'receipt'])->name('receipt');
             Route::get('/{cylinder}/edit', [AdminCylinderController::class, 'edit'])->name('edit');
             Route::get('/{cylinder}', [AdminCylinderController::class, 'show'])->name('show');
@@ -172,6 +179,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/create', [AdminCylinderController::class, 'create'])->name('create');
             Route::post('/', [AdminCylinderController::class, 'store'])->name('store');
             Route::get('/search-customers', [AdminCylinderController::class, 'searchCustomers'])->name('search-customers');
+
+            // Filtered views
+            Route::get('/paid-drop-offs', [AdminCylinderController::class, 'paidDropOffs'])->name('paid-drop-offs');
+            Route::get('/unpaid-drop-offs', [AdminCylinderController::class, 'unpaidDropOffs'])->name('unpaid-drop-offs');
+            Route::get('/pending-payments', [AdminCylinderController::class, 'pendingPayments'])->name('pending-payments');
+            Route::get('/advance-collections', [AdminCylinderController::class, 'advanceCollections'])->name('advance-collections');
+
             Route::get('/{cylinder}/receipt', [AdminCylinderController::class, 'receipt'])->name('receipt');
             Route::get('/{cylinder}', [AdminCylinderController::class, 'show'])->name('show');
             Route::post('/{cylinder}/complete', [AdminCylinderController::class, 'complete'])->name('complete');
