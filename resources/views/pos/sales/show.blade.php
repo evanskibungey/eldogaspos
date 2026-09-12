@@ -277,9 +277,14 @@
                                 Receipt Information
                             </h3>
                             <div class="grid grid-cols-2 gap-4">
-                                <div class="text-sm font-medium text-gray-500">Receipt Number:</div>
+                                @if($sale->order_number !== null)
+                                    <div class="text-sm font-medium text-gray-500">Order Number:</div>
+                                    <div class="text-lg text-orange-700 font-bold tabular-nums">{{ $sale->order_number }}</div>
+                                @endif
+
+                                <div class="text-sm font-medium text-gray-500">Receipt Ref.:</div>
                                 <div class="text-sm text-gray-900 font-semibold">{{ $sale->receipt_number }}</div>
-                                
+
                                 <div class="text-sm font-medium text-gray-500">Date:</div>
                                 <div class="text-sm text-gray-900">{{ $sale->created_at->format('M d, Y h:i A') }}</div>
                                 
@@ -368,7 +373,17 @@
                                         <tr class="hover:bg-gray-50 transition-colors duration-150">
                                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                                 {{ $item->product->name }}
-                                                <div class="text-xs text-gray-500">SKU: {{ $item->product->sku }}</div>
+                                                <div class="text-xs text-gray-500">
+                                                    SKU: {{ $item->product->sku }}
+                                                    @if($item->product->cylinder_size_label)
+                                                        &middot; {{ $item->product->cylinder_size_label }}
+                                                    @endif
+                                                </div>
+                                                @if($item->order_number !== null)
+                                                    <div class="text-xs text-orange-700 font-semibold tabular-nums">
+                                                        Order no. {{ $item->order_number }}
+                                                    </div>
+                                                @endif
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                 {{ $item->serial_number ?? 'N/A' }}
@@ -413,6 +428,12 @@
             <div class="separator-line">****************************</div>
             
             <!-- Receipt details -->
+            @if($sale->order_number !== null)
+                <div class="transaction-info">
+                    <div class="transaction-label">ORDER NO:</div>
+                    <div class="transaction-value">{{ $sale->order_number }}</div>
+                </div>
+            @endif
             <div class="transaction-info">
                 <div class="transaction-label">RECEIPT #:</div>
                 <div class="transaction-value">{{ $sale->receipt_number }}</div>
@@ -492,7 +513,7 @@
             
             <!-- Footer -->
             <div class="receipt-footer">
-                <div class="thank-you-msg">Thank you for your business!</div>
+                <div class="thank-you-msg">{{ setting('receipt_footer', 'ItishaTunaDeliver, Asante.') }}</div>
                 <div>Keep receipt for exchanges</div>
                 <div class="store-name">*{{ config('app.name', 'Eldogas') }}*</div>
                 <div>{{ date('d/m/Y') }}</div>

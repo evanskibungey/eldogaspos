@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\Sale;
 use App\Models\CylinderTransaction;
+use App\Services\Sms\PhoneNumber;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -190,31 +191,53 @@ class CustomerController extends Controller
     /**
      * Quick customer creation API endpoint for forms
      */
+    /**
+     * Create a customer from the quick-add form, or hand back the one already
+     * on file for that number.
+     *
+     * The phone was validated `unique:customers,phone`, which turned "this
+     * customer already exists" into a validation failure - the operator was
+     * blocked at exactly the moment the right answer was to select them. The
+     * number is matched across its spellings, because the column is free text
+     * and the same person may be stored as 0712..., 254712... or +254712....
+     */
     public function quickStore(Request $request)
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'phone' => 'required|string|max:20|unique:customers,phone',
+            'phone' => 'required|string|max:20',
         ]);
 
         try {
-            $customer = Customer::create([
-                'name' => $request->name,
-                'phone' => $request->phone,
-                'credit_limit' => 0,
-                'balance' => 0,
-                'status' => 'active',
-            ]);
+            $customer = Customer::whereIn('phone', PhoneNumber::variants($request->phone))->first();
+            $existed = $customer !== null;
+
+            if ($existed) {
+                if ($customer->status !== 'active') {
+                    $customer->update(['status' => 'active']);
+                }
+            } else {
+                $customer = Customer::create([
+                    'name' => $request->name,
+                    'phone' => $request->phone,
+                    'credit_limit' => 0,
+                    'balance' => 0,
+                    'status' => 'active',
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
+                'existing' => $existed,
                 'customer' => [
                     'id' => $customer->id,
                     'name' => $customer->name,
                     'phone' => $customer->phone,
                     'balance' => $customer->balance,
                 ],
-                'message' => 'Customer created successfully!'
+                'message' => $existed
+                    ? "{$customer->name} is already registered on this number and has been selected."
+                    : 'Customer created successfully!',
             ]);
 
         } catch (\Exception $e) {
@@ -232,7 +255,7 @@ class CustomerController extends Controller
     {
         $search = $request->get('q', '');
         
-        $customers = Customer::where('status', 'active')
+        $customers = Customer::selectable()
             ->where(function($query) use ($search) {
                 $query->where('name', 'like', "%{$search}%")
                       ->orWhere('phone', 'like', "%{$search}%");

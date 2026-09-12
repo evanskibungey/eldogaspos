@@ -21,10 +21,28 @@
         <env name="APP_ENV" value="testing"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="CACHE_DRIVER" value="array"/>
-        <!-- <env name="DB_CONNECTION" value="sqlite"/> -->
-        <!-- <env name="DB_DATABASE" value=":memory:"/> -->
+        <!--
+            Tests run against a DEDICATED database, never the working one.
+            These lines were previously commented out, which meant RefreshDatabase
+            inherited DB_DATABASE from .env and wiped live data on every run.
+
+            MySQL rather than sqlite on purpose: several migrations are raw MySQL
+            DDL, and the strict-mode enum behaviour that broke sale voiding does
+            not reproduce on sqlite - the engine under test has to match production.
+
+            Create it once with:
+              mysql -u root -e "CREATE DATABASE eldogas_testing"
+        -->
+        <env name="DB_CONNECTION" value="mysql"/>
+        <env name="DB_DATABASE" value="eldogas_testing"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
+        <!--
+            Never let a test reach the real SMS gateway: every message is billed,
+            and a stray token in .env would otherwise send to real handsets.
+        -->
+        <env name="SMS_DRIVER" value="log"/>
+        <env name="TALKSASA_TOKEN" value="testing-token-not-real"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
     </php>

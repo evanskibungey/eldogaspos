@@ -10,8 +10,13 @@ use App\Models\Customer;
 use App\Models\Category;
 use App\Models\Setting;
 use App\Models\CylinderTransaction;
+use App\Models\SmsLog;
 use App\Services\StockService;
 use App\Services\ReferenceNumberService;
+use App\Services\OrderNumberService;
+use App\Services\Sms\PhoneNumber;
+use App\Services\Sms\ReceiptMessage;
+use App\Services\Sms\SmsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -21,11 +26,16 @@ class PosController extends Controller
 {
     protected $stockService;
     protected $referenceNumberService;
+    protected $orderNumberService;
 
-    public function __construct(StockService $stockService, ReferenceNumberService $referenceNumberService)
-    {
+    public function __construct(
+        StockService $stockService,
+        ReferenceNumberService $referenceNumberService,
+        OrderNumberService $orderNumberService
+    ) {
         $this->stockService = $stockService;
         $this->referenceNumberService = $referenceNumberService;
+        $this->orderNumberService = $orderNumberService;
     }
 
     /**
@@ -69,8 +79,17 @@ class PosController extends Controller
                     'sku' => $product->sku,
                     'serial_number' => $product->serial_number,
                     'price' => (float)$product->price,
-                    'stock' => $product->stock,
+                    // `stock` is what the terminal validates and displays, so it
+                    // carries the sellable figure - physical stock minus units
+                    // reserved for cylinder collections awaiting pickup.
+                    'stock' => $product->available_stock,
+                    'physical_stock' => (int) $product->stock,
+                    'reserved_stock' => (int) $product->reserved_stock,
                     'min_stock' => $product->min_stock,
+                    'is_cylinder' => $product->isCylinder(),
+                    'cylinder_size_kg' => $product->cylinder_size_kg !== null ? (float) $product->cylinder_size_kg : null,
+                    'cylinder_size' => $product->cylinder_size_label,
+                    'out_of_stock' => $product->isOutOfStock(),
                     'image' => $product->image ? asset('storage/' . $product->image) : asset('images/placeholder.jpg'),
                     'status' => $product->status,
                     'category_name' => $product->category ? $product->category->name : 'Uncategorized'
@@ -104,49 +123,68 @@ class PosController extends Controller
     {
         Log::info('POS sale request:', $request->all());
 
-        // Check if this is an offline sync request
-        $isOfflineSync = $request->hasHeader('X-Offline-Sync');
-        
-        if ($isOfflineSync) {
-            Log::info('Detected offline sync request - redirecting to sync controller');
-            $syncController = new \App\Http\Controllers\Api\OfflineSyncController();
-            return $syncController->syncOfflineSale($request);
+        // Offline sales are queued in the browser and replayed with this header.
+        // The receiver has never existed, so the request used to instantiate a
+        // missing class and die as an uncaught Error. Fail cleanly instead.
+        if ($request->hasHeader('X-Offline-Sync')) {
+            Log::warning('Offline sync sale rejected - no sync receiver is implemented');
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Offline sale synchronisation is not available on this server. '
+                    . 'The queued sale has been kept and can be retried once syncing is enabled.',
+                'error_type' => 'offline_sync_unavailable',
+            ], 503);
         }
 
         try {
             // Validate the request
             Log::info('Validating request');
+            // Note: prices are NOT taken from the request. The client may send
+            // them for display purposes, but every figure that reaches the
+            // database is read from the products table under lock below.
             $basicValidation = $request->validate([
                 'cart_items' => 'required|array|min:1',
                 'cart_items.*.id' => 'required|exists:products,id',
                 'cart_items.*.quantity' => 'required|integer|min:1',
-                'cart_items.*.price' => 'required|numeric|min:0',
                 'cart_items.*.serial_number' => 'nullable|string|max:255',
                 'payment_method' => 'required|in:cash,credit',
             ]);
-            
-            // Additional validation for credit payments
+
+            // Customer details are mandatory on credit - the balance has to be
+            // owed by someone - and optional on cash, where naming the customer
+            // is what earns them an SMS receipt instead of the anonymous
+            // walk-in placeholder. Either way, whatever is supplied must be
+            // complete enough to identify a person.
+            $customerRules = [
+                'customer_details.customer_id' => 'nullable|exists:customers,id',
+                'customer_details.name' => 'required_without:customer_details.customer_id|string|max:255',
+                'customer_details.phone' => 'required_without:customer_details.customer_id|string|max:20',
+            ];
+
             if ($request->payment_method === 'credit') {
-                $request->validate([
-                    'customer_details' => 'required|array',
-                    'customer_details.customer_id' => 'nullable|exists:customers,id',
-                    'customer_details.name' => 'required_without:customer_details.customer_id|string|max:255',
-                    'customer_details.phone' => 'required_without:customer_details.customer_id|string|max:20'
-                ]);
+                $request->validate(array_merge(
+                    ['customer_details' => 'required|array'],
+                    $customerRules
+                ));
+            } elseif ($this->hasCustomerDetails($request)) {
+                $request->validate(array_merge(
+                    ['customer_details' => 'array'],
+                    $customerRules
+                ));
             }
             Log::info('Request validated successfully');
 
             DB::beginTransaction();
             Log::info('DB transaction started');
 
-            // Handle customer based on payment method
-            $customer = null;
-            if ($request->payment_method === 'credit') {
-                Log::info('Processing credit payment, handling customer creation');
+            // Attach the sale to a named customer whenever one was given. Cash
+            // sales may now name a customer too; without one they fall back to
+            // the shared walk-in placeholder as before.
+            if ($request->payment_method === 'credit' || $this->hasCustomerDetails($request)) {
                 $customer = $this->handleCustomerCreation($request->customer_details);
                 Log::info('Customer created/found', ['customer_id' => $customer->id]);
             } else {
-                Log::info('Processing cash payment, using default walk-in customer');
                 $customer = $this->getOrCreateWalkInCustomer();
                 Log::info('Walk-in customer used', ['customer_id' => $customer->id]);
             }
@@ -155,27 +193,39 @@ class PosController extends Controller
             $receiptNumber = $this->referenceNumberService->generateReceiptNumber();
             Log::info('Receipt number generated', ['receipt_number' => $receiptNumber]);
 
-            // Calculate total amount
-            $totalAmount = $this->calculateTotalAmount($request->cart_items);
-            Log::info('Total amount calculated', ['total' => $totalAmount]);
-
-            // Create sale record
+            // The sale row is created before the total is known because the
+            // stock movements written during deduction reference its id. The
+            // total and order number are filled in below, inside the same
+            // transaction, so no partial state is ever visible.
             Log::info('Creating sale record');
             $sale = $this->createSaleRecord([
                 'user_id' => auth()->id(),
                 'customer_id' => $customer->id,
                 'receipt_number' => $receiptNumber,
-                'total_amount' => $totalAmount,
+                'total_amount' => 0,
                 'payment_method' => $request->payment_method,
                 'payment_status' => $request->payment_method === 'cash' ? 'paid' : 'pending',
-                'status' => 'completed'
+                'status' => Sale::STATUS_COMPLETED,
             ]);
             Log::info('Sale record created', ['sale_id' => $sale->id]);
 
-            // Process cart items with stock service (includes locking)
+            // Deducts under row locks, validates against sellable stock, and
+            // hands back the pre-deduction levels the order numbers are built
+            // from. Throws if any line is short - the catch blocks roll back.
             Log::info('Processing cart items with stock deduction');
-            $this->processCartItems($request->cart_items, $sale->id);
-            Log::info('Cart items processed successfully');
+            [$saleItems, $totalAmount, $orderNumber] = $this->processCartItems(
+                $request->cart_items,
+                $sale
+            );
+            Log::info('Cart items processed', [
+                'total' => $totalAmount,
+                'order_number' => $orderNumber,
+            ]);
+
+            $sale->update([
+                'total_amount' => $totalAmount,
+                'order_number' => $orderNumber,
+            ]);
 
             // Update customer balance for credit sales
             if ($request->payment_method === 'credit') {
@@ -183,42 +233,37 @@ class PosController extends Controller
                 $this->updateCustomerBalance($customer, $totalAmount);
                 Log::info('Customer balance updated');
             }
-            
-            // Fetch the sale items with their serial numbers for the receipt
-            $saleItems = SaleItem::where('sale_id', $sale->id)
-                ->with('product')
-                ->get()
-                ->map(function ($item) {
-                    return [
-                        'id' => $item->product_id,
-                        'name' => $item->product->name,
-                        'quantity' => $item->quantity,
-                        'price' => $item->unit_price,
-                        'subtotal' => $item->subtotal,
-                        'serial_number' => $item->serial_number
-                    ];
-                });
 
             DB::commit();
             Log::info('DB transaction committed');
 
-            Log::info('Sale completed successfully', ['receipt_number' => $receiptNumber]);
+            // After the commit, never inside it: a queued receipt must not be
+            // able to roll the sale back, and the job must not read a sale that
+            // does not exist yet.
+            $this->sendSaleReceipt($sale, $customer);
+
+            Log::info('Sale completed successfully', [
+                'receipt_number' => $receiptNumber,
+                'order_number' => $orderNumber,
+            ]);
 
             return response()->json([
                 'success' => true,
                 'receipt_number' => $receiptNumber,
+                'order_number' => $orderNumber,
                 'message' => 'Sale completed successfully',
                 'sale_id' => $sale->id,
                 'customer' => $customer ? [
                     'id' => $customer->id,
                     'name' => $customer->name,
                     'phone' => $customer->phone,
-                    'balance' => $customer->balance
+                    'balance' => $customer->fresh()->balance
                 ] : null,
                 'receipt_data' => [
                     'date' => now()->format('Y-m-d H:i:s'),
                     'items' => $saleItems,
                     'total' => $totalAmount,
+                    'order_number' => $orderNumber,
                     'payment_method' => $request->payment_method,
                     'customer' => [
                         'name' => $customer->name,
@@ -226,6 +271,13 @@ class PosController extends Controller
                     ]
                 ]
             ]);
+        } catch (\App\Exceptions\InsufficientStockException $e) {
+            DB::rollBack();
+            Log::warning('POS sale refused - insufficient stock: ' . $e->getMessage());
+
+            // 422: the cashier can fix this by changing the cart, so the real
+            // reason goes back verbatim rather than being masked as a 500.
+            return response()->json($e->toArray(), 422);
         } catch (\Illuminate\Validation\ValidationException $e) {
             DB::rollBack();
             Log::error('Validation error in POS sale:', $e->errors());
@@ -268,6 +320,26 @@ class PosController extends Controller
         }
     }
 
+    /**
+     * Whether the request actually names a customer.
+     *
+     * The POS sends `customer_details: null` when the cashier skipped the
+     * step, and an empty-ish object is equivalent - neither should be treated
+     * as a customer to look up.
+     */
+    private function hasCustomerDetails(Request $request): bool
+    {
+        $details = $request->input('customer_details');
+
+        if (!is_array($details)) {
+            return false;
+        }
+
+        return filled($details['customer_id'] ?? null)
+            || filled($details['phone'] ?? null)
+            || filled($details['name'] ?? null);
+    }
+
     private function handleCustomerCreation(array $customerDetails)
     {
         try {
@@ -282,17 +354,64 @@ class PosController extends Controller
                 return $customer;
             }
             
-            // Otherwise, create or find customer by phone
-            return Customer::firstOrCreate(
-                ['phone' => $customerDetails['phone']],
-                [
-                    'name' => $customerDetails['name'],
-                    'status' => 'active'
-                ]
-            );
+            // Otherwise, reuse the customer already on file for this number.
+            //
+            // Matched across every spelling of the number rather than on the
+            // literal string: firstOrCreate on the raw value treated
+            // "0712345678" and "+254712345678" as two different people, and
+            // then hit the unique index when the second spelling collided.
+            $existing = Customer::whereIn(
+                'phone',
+                PhoneNumber::variants($customerDetails['phone'])
+            )->first();
+
+            if ($existing !== null) {
+                return $existing;
+            }
+
+            return Customer::create([
+                'phone' => $customerDetails['phone'],
+                'name' => $customerDetails['name'],
+                'status' => 'active',
+            ]);
         } catch (\Exception $e) {
             Log::error('Error handling customer: ' . $e->getMessage());
             throw new \Exception('Failed to process customer record');
+        }
+    }
+
+    /**
+     * Queue an SMS receipt for a completed sale.
+     *
+     * Silently does nothing for walk-in customers, whose placeholder number is
+     * not sendable. Failures are swallowed: the sale is already committed and
+     * the money taken, so a gateway problem must not turn a successful
+     * checkout into an error on the cashier's screen.
+     */
+    private function sendSaleReceipt(Sale $sale, ?Customer $customer): void
+    {
+        if (!setting('sms_send_sale_receipts', true)) {
+            return;
+        }
+
+        try {
+            $sale->loadMissing('items', 'customer');
+
+            app(SmsService::class)->queue(
+                $customer ? $customer->phone : null,
+                ReceiptMessage::forSale($sale),
+                SmsLog::PURPOSE_SALE_RECEIPT,
+                [
+                    'reference_type' => 'sale',
+                    'reference_id' => $sale->id,
+                    'customer_id' => $customer ? $customer->id : null,
+                ]
+            );
+        } catch (\Throwable $e) {
+            Log::error('Failed to queue sale receipt SMS', [
+                'sale_id' => $sale->id,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
@@ -312,11 +431,23 @@ class PosController extends Controller
         }
     }
 
-    private function calculateTotalAmount(array $cartItems)
+    /**
+     * Total is derived from the locked product rows, never from the request.
+     *
+     * @param  array  $stockResults  StockService results keyed by product id
+     */
+    private function calculateTotalAmount(array $cartItems, array $stockResults): float
     {
-        return collect($cartItems)->sum(function ($item) {
-            return $item['price'] * $item['quantity'];
-        });
+        $total = 0.0;
+
+        foreach ($cartItems as $item) {
+            $productId = (int) $item['id'];
+            $price = (float) $stockResults[$productId]['product']->price;
+
+            $total += $price * (int) $item['quantity'];
+        }
+
+        return round($total, 2);
     }
 
     private function createSaleRecord(array $saleData)
@@ -329,50 +460,81 @@ class PosController extends Controller
         }
     }
 
-    private function processCartItems(array $cartItems, int $saleId)
+    /**
+     * Deduct stock, write the sale lines, and derive the order numbers.
+     *
+     * Prices and stock levels both come from the rows StockService locked, so
+     * the money and the numbering are consistent with what was actually sold.
+     *
+     * @return array{0: \Illuminate\Support\Collection, 1: float, 2: int|null}
+     *         [receipt line data, authoritative total, headline order number]
+     */
+    private function processCartItems(array $cartItems, Sale $sale): array
     {
-        // Prepare items for batch stock deduction
         $stockItems = [];
-        
+        $productIdsInOrder = [];
+
         foreach ($cartItems as $item) {
-            $serialNumber = null;
-            if (isset($item['serial_number']) && !empty($item['serial_number'])) {
-                $serialNumber = $item['serial_number'];
-            }
+            $productId = (int) $item['id'];
+            $productIdsInOrder[] = $productId;
 
             $stockItems[] = [
-                'product_id' => $item['id'],
-                'quantity' => $item['quantity'],
-                'unit_price' => $item['price'],
-                'serial_number' => $serialNumber
+                'product_id' => $productId,
+                'quantity' => (int) $item['quantity'],
+                // unit_price is resolved from the locked product row by the
+                // service when null, so the ledger records the real price.
+                'unit_price' => null,
+                'serial_number' => !empty($item['serial_number']) ? $item['serial_number'] : null,
             ];
         }
 
         try {
-            // Deduct stock for all items at once with locking
-            $this->stockService->deductMultipleStock(
+            $stockResults = $this->stockService->deductMultipleStock(
                 $stockItems,
                 'sale',
-                $saleId,
-                'Stock deducted from POS sale #{$saleId} - Product: {product_name}, Qty: {quantity}'
+                $sale->id,
+                "Stock deducted from POS sale #{$sale->id} (Receipt: {$sale->receipt_number}) "
+                    . '- Product: {product_name}, Qty: {quantity}'
             );
 
-            // Create sale items
-            foreach ($cartItems as $item) {
-                $serialNumber = null;
-                if (isset($item['serial_number']) && !empty($item['serial_number'])) {
-                    $serialNumber = $item['serial_number'];
-                }
+            $totalAmount = $this->calculateTotalAmount($cartItems, $stockResults);
+            $orderNumber = $this->orderNumberService->headline($stockResults, $productIdsInOrder);
 
-                SaleItem::create([
-                    'sale_id' => $saleId,
-                    'product_id' => $item['id'],
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['price'],
-                    'subtotal' => $item['price'] * $item['quantity'],
-                    'serial_number' => $serialNumber
+            $lines = collect();
+
+            foreach ($cartItems as $item) {
+                $productId = (int) $item['id'];
+                $result = $stockResults[$productId];
+                $product = $result['product'];
+
+                $quantity = (int) $item['quantity'];
+                $unitPrice = (float) $product->price;
+                $lineOrderNumber = $this->orderNumberService->forLine($result);
+
+                $saleItem = SaleItem::create([
+                    'sale_id' => $sale->id,
+                    'product_id' => $productId,
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'subtotal' => round($unitPrice * $quantity, 2),
+                    'order_number' => $lineOrderNumber,
+                    'serial_number' => !empty($item['serial_number']) ? $item['serial_number'] : null,
+                ]);
+
+                $lines->push([
+                    'id' => $productId,
+                    'name' => $product->name,
+                    'cylinder_size' => $product->cylinder_size_label,
+                    'quantity' => $quantity,
+                    'price' => $unitPrice,
+                    'subtotal' => $saleItem->subtotal,
+                    'order_number' => $lineOrderNumber,
+                    'stock_after' => $result['available_after'],
+                    'serial_number' => $saleItem->serial_number,
                 ]);
             }
+
+            return [$lines, $totalAmount, $orderNumber];
         } catch (\Exception $e) {
             Log::error('Error processing cart items: ' . $e->getMessage());
             throw $e;
@@ -397,13 +559,24 @@ class PosController extends Controller
                 'quantity' => 'required|integer|min:1'
             ]);
 
-            $hasStock = $this->stockService->hasStock($request->product_id, $request->quantity);
-            $currentStock = $this->stockService->getCurrentStock($request->product_id);
-            
+            $product = Product::findOrFail($request->product_id);
+            $availableStock = $product->available_stock;
+            $hasStock = $availableStock >= (int) $request->quantity;
+
             return response()->json([
                 'success' => true,
                 'available' => $hasStock,
-                'current_stock' => $currentStock
+                'current_stock' => $availableStock,
+                'physical_stock' => (int) $product->stock,
+                'reserved_stock' => (int) $product->reserved_stock,
+                'out_of_stock' => $product->isOutOfStock(),
+                // What the order number would be if this line were sold now.
+                'next_order_number' => $availableStock,
+                'message' => $hasStock
+                    ? null
+                    : ($product->isOutOfStock()
+                        ? "{$product->name} is out of stock."
+                        : "Only {$availableStock} unit(s) of {$product->name} remain."),
             ]);
         } catch (\Exception $e) {
             Log::error('Error checking stock: ' . $e->getMessage());

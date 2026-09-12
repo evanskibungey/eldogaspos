@@ -435,9 +435,21 @@
 
                 async updateSyncStatus() {
                     if (!this.offlineManager) {
-                        // Try to get data from API if offline manager is not available
+                        // No offline manager and no server-side receiver: offline
+                        // mode is off, so there is nothing to report. This used to
+                        // poll /api/v1/offline/sync-status every 30 seconds - a
+                        // path that does not exist, since the API is not
+                        // versioned - filling the console with 404s.
+                        if (!window.offlineModeEnabled) {
+                            this.pendingSyncCount = 0;
+                            this.offlineSalesSummary = null;
+                            return;
+                        }
+
                         try {
-                            const response = await fetch('/api/v1/offline/sync-status');
+                            const response = await fetch('/api/offline/sync-status', {
+                                headers: { 'Accept': 'application/json' }
+                            });
                             if (response.ok) {
                                 const data = await response.json();
                                 this.pendingSyncCount = data.pendingCount || 0;
@@ -480,18 +492,12 @@
                         if (this.offlineManager) {
                             await this.offlineManager.startBackgroundSync();
                         } else {
-                            // Trigger sync via API
-                            const response = await fetch('/api/v1/offline/sync-all', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
-                                }
-                            });
-                            
-                            if (!response.ok) {
-                                throw new Error('Sync failed');
-                            }
+                            // There is no server-side sync receiver. Saying so is
+                            // better than POSTing to a path that does not exist
+                            // and reporting a generic "Sync failed".
+                            throw new Error(
+                                'Offline sync is not available: this installation has no sync receiver.'
+                            );
                         }
                         
                         await this.updateSyncStatus();

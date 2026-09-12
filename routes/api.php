@@ -112,8 +112,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{cylinder}', [\App\Http\Controllers\Admin\CylinderController::class, 'show']);
         Route::put('/{cylinder}', [\App\Http\Controllers\Admin\CylinderController::class, 'update']);
         Route::post('/{cylinder}/complete', [\App\Http\Controllers\Admin\CylinderController::class, 'complete']);
-        Route::post('/{cylinder}/quick-complete', [\App\Http\Controllers\Admin\CylinderController::class, 'quickComplete']);
-        Route::post('/{cylinder}/quick-return', [\App\Http\Controllers\Admin\CylinderController::class, 'quickReturn']);
+        // quick-complete / quick-return removed: no such methods exist on the
+        // controller, so both endpoints returned a 500. Use /complete.
+        Route::post('/{cylinder}/record-payment', [\App\Http\Controllers\Admin\CylinderController::class, 'recordPayment']);
         Route::post('/{cylinder}/cancel', [\App\Http\Controllers\Admin\CylinderController::class, 'cancel']);
         Route::delete('/{cylinder}', [\App\Http\Controllers\Admin\CylinderController::class, 'destroy']);
     });

@@ -98,7 +98,7 @@ class SaleController extends Controller
         $companyAddress = setting('company_address', '');
         $companyPhone = setting('company_phone', '');
         $companyEmail = setting('company_email', '');
-        $receiptFooter = setting('receipt_footer', 'Thank you for your business!');
+        $receiptFooter = setting('receipt_footer', \App\Services\Sms\ReceiptMessage::DEFAULT_FOOTER);
         
         return view('pos.sales.show', compact(
             'sale', 
@@ -125,13 +125,22 @@ class SaleController extends Controller
             return back()->with('error', 'Unauthorized action.');
         }
         
+        // Voiding twice would restore the stock twice.
+        if ($sale->isVoided()) {
+            return back()->with('error', 'This sale has already been voided.');
+        }
+
         try {
             DB::beginTransaction();
-            
-            // Update sale status
-            $sale->status = 'voided';
+
+            $sale->load('items');
+
+            // 'voided' is a real enum value now. Before the enum was widened
+            // this write threw under STRICT_TRANS_TABLES, so the whole void
+            // rolled back and stock was never actually returned.
+            $sale->status = Sale::STATUS_VOIDED;
             $sale->save();
-            
+
             // Prepare items for batch stock restoration
             $stockItems = [];
             foreach ($sale->items as $item) {
@@ -144,21 +153,27 @@ class SaleController extends Controller
             }
 
             // Restore stock using stock service
-            $this->stockService->restoreMultipleStock(
-                $stockItems,
-                'sale_void',
-                $sale->id,
-                'Stock returned from voided sale #' . $sale->id . ' (Receipt: ' . $sale->receipt_number . ') - Product: {product_name}, Qty: {quantity}'
-            );
-            
-            // If this was a credit sale, adjust customer balance
-            if ($sale->payment_method === 'credit' && $sale->customer) {
+            if (!empty($stockItems)) {
+                $this->stockService->restoreMultipleStock(
+                    $stockItems,
+                    'sale_void',
+                    $sale->id,
+                    'Stock returned from voided sale #' . $sale->id . ' (Receipt: ' . $sale->receipt_number . ') - Product: {product_name}, Qty: {quantity}'
+                );
+            }
+
+            // If this was an unpaid credit sale, clear the debt it raised.
+            // A settled credit sale must not be decremented again - the customer
+            // already paid, so the balance no longer carries this sale.
+            if ($sale->payment_method === 'credit'
+                && $sale->payment_status !== 'paid'
+                && $sale->customer) {
                 $sale->customer->decrement('balance', $sale->total_amount);
             }
-            
+
             DB::commit();
-            
-            return back()->with('success', 'Sale voided successfully.');
+
+            return back()->with('success', 'Sale voided successfully. Stock has been returned.');
         } catch (\Exception $e) {
             DB::rollBack();
             

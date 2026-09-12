@@ -2,22 +2,29 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Providers\RouteServiceProvider;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
+/**
+ * Self-registration is deliberately closed on this system: staff accounts are
+ * created by an administrator under Users, and every account carries a role.
+ * RegisteredUserController answers 404 to both verbs.
+ *
+ * These tests originally came from the Breeze scaffolding and asserted that
+ * registration worked, so they had been failing ever since it was switched off.
+ * They now pin the intended behaviour instead.
+ */
 class RegistrationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_registration_screen_can_be_rendered(): void
+    public function test_registration_screen_is_not_available(): void
     {
-        $response = $this->get('/register');
-
-        $response->assertStatus(200);
+        $this->get('/register')->assertNotFound();
     }
 
-    public function test_new_users_can_register(): void
+    public function test_new_users_cannot_self_register(): void
     {
         $response = $this->post('/register', [
             'name' => 'Test User',
@@ -26,7 +33,8 @@ class RegistrationTest extends TestCase
             'password_confirmation' => 'password',
         ]);
 
-        $this->assertAuthenticated();
-        $response->assertRedirect(RouteServiceProvider::HOME);
+        $response->assertNotFound();
+        $this->assertGuest();
+        $this->assertSame(0, User::where('email', 'test@example.com')->count());
     }
 }

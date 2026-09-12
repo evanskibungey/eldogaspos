@@ -69,6 +69,9 @@ class SettingController extends Controller
             'tax_percentage',
             'low_stock_threshold',
             'receipt_footer',
+            'sms_sender_id',
+            'sms_app_link',
+            'app_store_url',
         ];
 
         foreach ($textSettings as $key) {
@@ -86,6 +89,10 @@ class SettingController extends Controller
             'enable_credit_sales',
             'enable_receipt_printing',
             'require_serial_number',
+            'sms_enabled',
+            'sms_send_sale_receipts',
+            'sms_send_cylinder_receipts',
+            'sms_send_thank_you',
         ];
 
         foreach ($booleanSettings as $key) {

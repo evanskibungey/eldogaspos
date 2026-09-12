@@ -19,7 +19,7 @@ class QuickFixSeeder extends Seeder
             ['key' => 'company_address', 'value' => 'Eldoret, Kenya'],
             ['key' => 'currency_symbol', 'value' => 'KSh'],
             ['key' => 'tax_percentage', 'value' => '0'],
-            ['key' => 'receipt_footer', 'value' => 'Thank you for your business!'],
+            ['key' => 'receipt_footer', 'value' => 'ItishaTunaDeliver, Asante.'],
         ];
 
         foreach ($settings as $setting) {

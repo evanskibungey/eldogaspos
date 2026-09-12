@@ -118,7 +118,7 @@
         <div class="divider"></div>
         
         <div class="footer">
-            <div>Thank you for your business!</div>
+            <div>{{ setting('receipt_footer', 'ItishaTunaDeliver, Asante.') }}</div>
             <div>Please come again</div>
         </div>
     </div>

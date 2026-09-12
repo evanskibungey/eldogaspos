@@ -1,3 +1,15 @@
+# The project root denies all web access, and Apache inherits that into this
+# directory. public/ is the one directory that is meant to be reachable, so it
+# has to grant access back explicitly - without this the whole app 403s when
+# served the common XAMPP way (http://host/eldogaspos/public/).
+<IfModule mod_authz_core.c>
+    Require all granted
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Allow from all
+</IfModule>
+
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes

@@ -36,7 +36,7 @@ if (!function_exists('setting')) {
             'company_name' => 'EldoGas POS',
             'currency_symbol' => 'KSh',
             'tax_percentage' => '16',
-            'receipt_footer' => 'Thank you for your business!',
+            'receipt_footer' => 'ItishaTunaDeliver, Asante.',
         ];
         
         return $defaults[$key] ?? $default;

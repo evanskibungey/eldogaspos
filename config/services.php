@@ -31,4 +31,43 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | TalkSasa Bulk SMS
+    |--------------------------------------------------------------------------
+    |
+    | Verified against the account's own API docs and by probing the live host:
+    |
+    |   - auth is `Authorization: Bearer {token}` plus an Accept: json header
+    |   - every reply is HTTP 200, including errors; success is decided by the
+    |     `status` field ("success" / "error") in the body, never by the code
+    |   - recipients carry no leading + (docs example: 8801721970168)
+    |   - `sms/send` and `balance` exist; `profile` and `sms-units` do not
+    |
+    | Endpoint paths stay in config so they can be corrected without touching
+    | the client.
+    |
+    | driver: 'log' writes messages to the log instead of sending, so local
+    | development and the test suite never spend real SMS credits. Set
+    | SMS_DRIVER=talksasa in production only.
+    |
+    */
+    'talksasa' => [
+        'driver' => env('SMS_DRIVER', 'log'),
+        'base_url' => env('TALKSASA_BASE_URL', 'https://bulksms.talksasa.com/api/v3'),
+        'token' => env('TALKSASA_TOKEN'),
+        'sender_id' => env('TALKSASA_SENDER_ID', 'ELDOGAS'),
+        'timeout' => (int) env('TALKSASA_TIMEOUT', 15),
+
+        // Some installs of the platform want +254..., others reject the plus.
+        // Flip this if a live send is rejected for an invalid recipient.
+        'plus_prefix' => (bool) env('TALKSASA_PLUS_PREFIX', false),
+
+        'endpoints' => [
+            'send' => env('TALKSASA_SEND_PATH', 'sms/send'),
+            'show' => env('TALKSASA_SHOW_PATH', 'sms/{uid}'),
+            'balance' => env('TALKSASA_BALANCE_PATH', 'balance'),
+        ],
+    ],
+
 ];

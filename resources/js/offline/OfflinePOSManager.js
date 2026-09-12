@@ -399,7 +399,7 @@ class OfflinePOSManager {
     async syncSaleToServer(operation) {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         
-        const response = await fetch('/api/v1/offline/sync-sale', {
+        const response = await fetch('/api/offline/sync-sale', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -518,7 +518,7 @@ class OfflinePOSManager {
         }
 
         try {
-            const response = await fetch('/api/v1/offline/products', {
+            const response = await fetch('/api/offline/products', {
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
                 }

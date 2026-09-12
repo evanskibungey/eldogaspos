@@ -34,7 +34,18 @@
         <x-sidebar-layout>
             {{ $slot }}
         </x-sidebar-layout>
-        
+
+        {{-- Outside the sidebar layout so no ancestor transform or overflow can clip it. --}}
+        <x-confirm-dialog />
+
+        {{--
+            Nine views @push('scripts') and this stack was never rendered, so
+            every one of those blocks was silently discarded - including the six
+            that load Chart.js. That is why the dashboard and every report
+            showed empty chart canvases.
+        --}}
+        @stack('scripts')
+
         <!-- Mark that Vite has loaded -->
         <script>window.vite_loaded = true;</script>
     </body>

@@ -8,12 +8,20 @@ use App\Models\Category;
 use App\Models\StockMovement;
 use App\Models\Setting;
 use Illuminate\Http\Request;
+use App\Services\StockService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
+    protected $stockService;
+
+    public function __construct(StockService $stockService)
+    {
+        $this->stockService = $stockService;
+    }
+
     /**
      * Get settings helper function
      * 
@@ -125,6 +133,9 @@ class ProductController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'category_id' => 'required|exists:categories,id',
+            'brand' => 'nullable|string|max:255',
+            // Present only for gas cylinders; NULL marks a non-cylinder product.
+            'cylinder_size_kg' => 'nullable|numeric|min:0.1|max:999.99',
             'price' => 'required|numeric|min:0',
             'cost_price' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
@@ -190,6 +201,9 @@ class ProductController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'category_id' => 'required|exists:categories,id',
+            'brand' => 'nullable|string|max:255',
+            // Present only for gas cylinders; NULL marks a non-cylinder product.
+            'cylinder_size_kg' => 'nullable|numeric|min:0.1|max:999.99',
             'price' => 'required|numeric|min:0',
             'cost_price' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
@@ -210,22 +224,29 @@ class ProductController extends Controller
             $validated['image'] = $request->file('image')->store('products', 'public');
         }
 
-        // Check if stock has changed
-        $oldStock = $product->stock;
-        $newStock = $validated['stock'];
+        // Stock is applied separately, under lock, via StockService - so pull it
+        // out of the mass update rather than writing products.stock directly.
+        $newStock = (int) $validated['stock'];
+        unset($validated['stock']);
 
-        if ($oldStock !== $newStock) {
-            StockMovement::create([
-                'product_id' => $product->id,
-                'type' => $newStock > $oldStock ? 'in' : 'out',
-                'quantity' => abs($newStock - $oldStock),
-                'reference_type' => 'adjustment',
-                'notes' => 'Stock adjusted during product update',
-                'created_by' => auth()->id()
-            ]);
+        try {
+            DB::transaction(function () use ($product, $validated, $newStock) {
+                $product->update($validated);
+
+                if ((int) $product->stock !== $newStock) {
+                    $this->stockService->setStockLevel(
+                        $product->id,
+                        $newStock,
+                        'Stock adjusted during product update',
+                        'manual_adjustment'
+                    );
+                }
+            });
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', $e->getMessage())
+                ->withInput();
         }
-
-        $product->update($validated);
 
         return redirect()->route('admin.products.index')
             ->with('success', 'Product updated successfully');
@@ -268,23 +289,26 @@ class ProductController extends Controller
             'notes' => 'nullable|string|max:255'
         ]);
 
-        $oldStock = $product->stock;
-        $newStock = $request->new_stock;
+        try {
+            // Routed through StockService so the read-modify-write happens under
+            // a row lock inside a transaction. Previously this wrote the ledger
+            // row and the product separately with neither.
+            $result = $this->stockService->setStockLevel(
+                $product->id,
+                (int) $request->new_stock,
+                $request->notes ?? 'Manual stock adjustment'
+            );
 
-        // Create stock movement record
-        StockMovement::create([
-            'product_id' => $product->id,
-            'type' => $newStock > $oldStock ? 'in' : 'out',
-            'quantity' => abs($newStock - $oldStock),
-            'reference_type' => 'manual_adjustment',
-            'notes' => $request->notes ?? 'Manual stock adjustment',
-            'created_by' => auth()->id()
-        ]);
-
-        // Update the product stock
-        $product->update(['stock' => $newStock]);
-
-        return redirect()->back()->with('success', 'Stock updated successfully');
+            return redirect()->back()->with(
+                'success',
+                "Stock updated: {$result['stock_before']} -> {$result['stock_after']} "
+                    . "({$result['available_after']} available to sell)"
+            );
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', $e->getMessage())
+                ->withInput();
+        }
     }
 
     /**

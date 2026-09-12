@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\StockMovementController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\SettingController;
+use App\Http\Controllers\Admin\SmsController;
 use App\Http\Controllers\Admin\CylinderController as AdminCylinderController;
 use App\Http\Controllers\Pos\PosController;
 use App\Http\Controllers\Pos\SaleController;
@@ -30,6 +31,38 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 });
+
+/*
+| Short link to the customer app, for use in SMS.
+|
+| The Play Store URL is 90 characters; this is about 25, which is the
+| difference between one billed message and two on every thank-you sent. Public
+| and unauthenticated on purpose - it is opened by customers, from a text.
+|
+| 302 rather than 301: the destination is a setting, and a permanently cached
+| redirect could not be repointed at an iOS listing or a chooser page later.
+*/
+Route::get('/app', function () {
+    $destination = trim((string) setting('app_store_url', ''));
+
+    abort_if($destination === '', 404);
+
+    // Both settings are edited by hand, and putting the short link into the
+    // destination field too is an easy slip - it makes this route redirect to
+    // itself, which the browser shows customers as ERR_TOO_MANY_REDIRECTS.
+    // Fail visibly in the log instead of looping.
+    if (rtrim($destination, '/') === rtrim(url('/app'), '/')) {
+        \Illuminate\Support\Facades\Log::error(
+            'app_store_url points at this redirect itself, so /app would loop. '
+                . 'Set it to the app store URL in System Settings.',
+            ['app_store_url' => $destination]
+        );
+
+        abort(404);
+    }
+
+    return redirect()->away($destination);
+})->name('app.download');
 
 // Modified dashboard route to handle role-based redirection
 Route::get('/dashboard', function () {
@@ -96,11 +129,32 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/pending-payments', [AdminCylinderController::class, 'pendingPayments'])->name('pending-payments');
             Route::get('/advance-collections', [AdminCylinderController::class, 'advanceCollections'])->name('advance-collections');
 
+            // CSV exports of each filtered view, linked from its own screen.
+            Route::get('/paid-drop-offs/export', [AdminCylinderController::class, 'exportList'])
+                ->defaults('list', 'paid-drop-offs')->name('paid-drop-offs.export');
+            Route::get('/unpaid-drop-offs/export', [AdminCylinderController::class, 'exportList'])
+                ->defaults('list', 'unpaid-drop-offs')->name('unpaid-drop-offs.export');
+            Route::get('/pending-payments/export', [AdminCylinderController::class, 'exportList'])
+                ->defaults('list', 'pending-payments')->name('pending-payments.export');
+            Route::get('/advance-collections/export', [AdminCylinderController::class, 'exportList'])
+                ->defaults('list', 'advance-collections')->name('advance-collections.export');
+
+            // Per-customer cylinder history
+            Route::get('/customer/{customer}/history', [AdminCylinderController::class, 'customerHistory'])
+                ->name('customer.history');
+            Route::get('/customer/{customer}/history/export', [AdminCylinderController::class, 'customerHistoryExport'])
+                ->name('customer.history.export');
+
+            Route::post('/bulk-update-payment-status', [AdminCylinderController::class, 'bulkUpdatePaymentStatus'])
+                ->name('bulk-update-payment-status');
+
             Route::get('/{cylinder}/receipt', [AdminCylinderController::class, 'receipt'])->name('receipt');
             Route::get('/{cylinder}/edit', [AdminCylinderController::class, 'edit'])->name('edit');
             Route::get('/{cylinder}', [AdminCylinderController::class, 'show'])->name('show');
             Route::put('/{cylinder}', [AdminCylinderController::class, 'update'])->name('update');
             Route::post('/{cylinder}/complete', [AdminCylinderController::class, 'complete'])->name('complete');
+            Route::post('/{cylinder}/record-payment', [AdminCylinderController::class, 'recordPayment'])
+                ->name('record-payment');
             Route::post('/{cylinder}/cancel', [AdminCylinderController::class, 'cancel'])->name('cancel');
             Route::delete('/{cylinder}', [AdminCylinderController::class, 'destroy'])->name('destroy');
         });
@@ -139,6 +193,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/debug-chart', [ReportController::class, 'debugChart'])->name('debug-chart');
         });
         
+        // SMS — history, campaigns, and gateway balance
+        Route::prefix('sms')->name('sms.')->group(function () {
+            Route::get('/', [SmsController::class, 'index'])->name('index');
+            Route::get('/compose', [SmsController::class, 'compose'])->name('compose');
+            Route::post('/send', [SmsController::class, 'send'])->name('send');
+            Route::get('/balance', [SmsController::class, 'balance'])->name('balance');
+        });
+
         // Settings
         Route::get('/settings', [SettingController::class, 'index'])->name('settings');
         Route::post('/settings', [SettingController::class, 'update'])->name('settings.update');
@@ -161,6 +223,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Sales
         Route::get('/sales/create', [SaleController::class, 'create'])->name('sales.create');
         Route::post('/sales', [PosController::class, 'store'])->name('sales.store');
+
+        // Live availability lookup for the terminal. Reports sellable stock
+        // (physical minus reserved). Advisory only - the binding check happens
+        // under a row lock when the sale is submitted.
+        Route::post('/check-stock', [PosController::class, 'checkStock'])->name('check-stock');
         Route::get('/sales/history', [SaleController::class, 'history'])->name('sales.history');
         Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
         Route::post('/sales/{sale}/void', [SaleController::class, 'void'])->name('sales.void');
@@ -186,11 +253,33 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/pending-payments', [AdminCylinderController::class, 'pendingPayments'])->name('pending-payments');
             Route::get('/advance-collections', [AdminCylinderController::class, 'advanceCollections'])->name('advance-collections');
 
+            // CSV exports of each filtered view, linked from its own screen.
+            Route::get('/paid-drop-offs/export', [AdminCylinderController::class, 'exportList'])
+                ->defaults('list', 'paid-drop-offs')->name('paid-drop-offs.export');
+            Route::get('/unpaid-drop-offs/export', [AdminCylinderController::class, 'exportList'])
+                ->defaults('list', 'unpaid-drop-offs')->name('unpaid-drop-offs.export');
+            Route::get('/pending-payments/export', [AdminCylinderController::class, 'exportList'])
+                ->defaults('list', 'pending-payments')->name('pending-payments.export');
+            Route::get('/advance-collections/export', [AdminCylinderController::class, 'exportList'])
+                ->defaults('list', 'advance-collections')->name('advance-collections.export');
+
+            Route::get('/customer/{customer}/history', [AdminCylinderController::class, 'customerHistory'])
+                ->name('customer.history');
+            Route::get('/customer/{customer}/history/export', [AdminCylinderController::class, 'customerHistoryExport'])
+                ->name('customer.history.export');
+
             Route::get('/{cylinder}/receipt', [AdminCylinderController::class, 'receipt'])->name('receipt');
             Route::get('/{cylinder}', [AdminCylinderController::class, 'show'])->name('show');
             Route::post('/{cylinder}/complete', [AdminCylinderController::class, 'complete'])->name('complete');
-            Route::post('/{cylinder}/quick-complete', [AdminCylinderController::class, 'quickComplete'])->name('quick-complete');
-            Route::post('/{cylinder}/quick-return', [AdminCylinderController::class, 'quickReturn'])->name('quick-return');
+            Route::post('/{cylinder}/record-payment', [AdminCylinderController::class, 'recordPayment'])
+                ->name('record-payment');
+
+            // quick-complete / quick-return removed: they pointed at methods
+            // that never existed on this controller (they lived on the Pos
+            // controller deleted in df0fb52) and returned a 500 on every call.
+            // Their old implementation also skipped the reserved-stock commit,
+            // so completing through them leaked reserved units permanently.
+            // complete() handles both transaction types correctly.
         });
         
         // Customer API endpoints for POS

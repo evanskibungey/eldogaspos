@@ -157,7 +157,7 @@
             ═══════════════════════════
         </div>
         <div>
-            Thank you for your business!<br>
+            {{ setting('receipt_footer', 'ItishaTunaDeliver, Asante.') }}<br>
             For inquiries: +254 XXX XXX XXX
         </div>
         <div style="margin-top: 10px; font-size: 10px;">

@@ -338,7 +338,17 @@
                                                 @endif
 
                                                 <form method="POST" action="{{ route($isPosContext ? 'pos.cylinders.complete' : 'admin.cylinders.complete', $transaction) }}"
-                                                      class="inline" onsubmit="return confirm('Complete this transaction?')">
+                                                      class="inline"
+                                                      data-confirm
+                                                      data-confirm-title="Complete this transaction?"
+                                                      data-confirm-message="{{ $transaction->customer_name }} — {{ $transaction->isDropOff() ? 'collecting refilled cylinders' : 'returning empty cylinders' }}."
+                                                      @if($transaction->isPending())
+                                                          data-confirm-amount="This also records payment of KSh {{ number_format($transaction->getTotalAmount(), 2) }} as received."
+                                                          data-confirm-action="Complete &amp; mark paid"
+                                                      @else
+                                                          data-confirm-action="Complete"
+                                                      @endif
+                                                      data-confirm-variant="success">
                                                     @csrf
                                                     <button type="submit" class="inline-flex items-center px-3 py-1.5 bg-green-100 text-green-700 hover:bg-green-200 rounded-lg transition-all font-semibold">
                                                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

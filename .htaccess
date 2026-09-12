@@ -1,0 +1,37 @@
+# ---------------------------------------------------------------------------
+# Deny all web access to the application root.
+#
+# Only public/ is meant to be web-reachable. When the app is served the common
+# XAMPP way - http://host/eldogaspos/ rather than a vhost whose DocumentRoot is
+# public/ - the project root is exposed, and everything in it becomes a URL.
+#
+# That included reset_db.php, which runs DROP DATABASE with no authentication,
+# plus ~24 other maintenance scripts that bootstrap the framework and mutate
+# data. This file closes that off.
+#
+# The correct long-term fix is still to point DocumentRoot at public/. This is
+# defence in depth, not a substitute.
+# ---------------------------------------------------------------------------
+
+# Apache 2.4
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+
+# Apache 2.2
+<IfModule !mod_authz_core.c>
+    Order deny,allow
+    Deny from all
+</IfModule>
+
+# Never hand out .env, source, or VCS metadata even if the rules above are
+# overridden by a less restrictive vhost config.
+<FilesMatch "\.(env|log|sqlite|json|lock|md|bat|sh|ya?ml)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</FilesMatch>

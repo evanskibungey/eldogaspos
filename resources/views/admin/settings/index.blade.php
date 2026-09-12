@@ -152,6 +152,124 @@
                             </div>
                         </div>
 
+                        <!-- SMS Notifications -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h3 class="text-lg font-medium text-gray-900 mb-1">SMS Notifications</h3>
+                            <p class="text-sm text-gray-500 mb-4">
+                                Sent through TalkSasa. Credentials live in the server's <code>.env</code> file;
+                                these switches control when messages are sent.
+                            </p>
+
+                            @if(config('services.talksasa.driver') === 'log')
+                                <div class="mb-4 bg-yellow-50 border border-yellow-200 text-yellow-800 p-3 rounded-md text-sm">
+                                    <strong>Log driver active.</strong> Messages are written to the application
+                                    log instead of being delivered. Set <code>SMS_DRIVER=talksasa</code> in
+                                    <code>.env</code> to send for real.
+                                </div>
+                            @elseif(empty(config('services.talksasa.token')))
+                                <div class="mb-4 bg-red-50 border border-red-200 text-red-700 p-3 rounded-md text-sm">
+                                    <strong>No API token configured.</strong> Set <code>TALKSASA_TOKEN</code> in
+                                    <code>.env</code> or no messages will be sent.
+                                </div>
+                            @endif
+
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="sms_sender_id" class="block text-sm font-medium text-gray-700">Sender ID</label>
+                                    <input type="text" name="sms_sender_id" id="sms_sender_id" maxlength="11"
+                                        class="mt-1 block w-full md:w-1/2 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                        value="{{ $settings['sms_sender_id'] ?? config('services.talksasa.sender_id') }}">
+                                    <p class="mt-1 text-xs text-gray-500">
+                                        Maximum 11 characters, and must be a sender ID already approved on your
+                                        TalkSasa account.
+                                    </p>
+                                </div>
+
+                                <div class="flex items-start">
+                                    <div class="flex items-center h-5">
+                                        <input id="sms_enabled" name="sms_enabled" type="checkbox"
+                                            class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                            {{ isset($settings['sms_enabled']) && $settings['sms_enabled'] ? 'checked' : '' }}>
+                                    </div>
+                                    <div class="ml-3 text-sm">
+                                        <label for="sms_enabled" class="font-medium text-gray-700">Enable SMS</label>
+                                        <p class="text-gray-500">Master switch. When off, nothing is sent at all.</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-start">
+                                    <div class="flex items-center h-5">
+                                        <input id="sms_send_sale_receipts" name="sms_send_sale_receipts" type="checkbox"
+                                            class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                            {{ isset($settings['sms_send_sale_receipts']) && $settings['sms_send_sale_receipts'] ? 'checked' : '' }}>
+                                    </div>
+                                    <div class="ml-3 text-sm">
+                                        <label for="sms_send_sale_receipts" class="font-medium text-gray-700">SMS receipts for POS sales</label>
+                                        <p class="text-gray-500">Walk-in customers have no phone number and are skipped automatically.</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-start">
+                                    <div class="flex items-center h-5">
+                                        <input id="sms_send_cylinder_receipts" name="sms_send_cylinder_receipts" type="checkbox"
+                                            class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                            {{ isset($settings['sms_send_cylinder_receipts']) && $settings['sms_send_cylinder_receipts'] ? 'checked' : '' }}>
+                                    </div>
+                                    <div class="ml-3 text-sm">
+                                        <label for="sms_send_cylinder_receipts" class="font-medium text-gray-700">SMS receipt when a cylinder transaction is created</label>
+                                        <p class="text-gray-500">The customer's record of what they left and what they owe.</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-start">
+                                    <div class="flex items-center h-5">
+                                        <input id="sms_send_thank_you" name="sms_send_thank_you" type="checkbox"
+                                            class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                            {{ isset($settings['sms_send_thank_you']) && $settings['sms_send_thank_you'] ? 'checked' : '' }}>
+                                    </div>
+                                    <div class="ml-3 text-sm">
+                                        <label for="sms_send_thank_you" class="font-medium text-gray-700">Thank-you SMS when a transaction is completed</label>
+                                        <p class="text-gray-500">Includes the free-delivery offer and the app link below.</p>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label for="sms_app_link" class="block text-sm font-medium text-gray-700">Customer app link (sent in SMS)</label>
+                                    <input type="url" name="sms_app_link" id="sms_app_link"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                        value="{{ $settings['sms_app_link'] ?? '' }}"
+                                        placeholder="{{ url('/app') }}">
+                                    <p class="mt-1 text-xs" id="smsLinkCost"></p>
+                                    <p class="mt-1 text-xs text-gray-500">
+                                        Leave blank to send the thanks without the offer.
+                                    </p>
+
+                                    <div class="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md text-xs text-blue-900">
+                                        <p class="font-semibold mb-1">Use the short link to halve your SMS cost</p>
+                                        <p>
+                                            Paste <code class="px-1 py-0.5 bg-white rounded border border-blue-200 font-mono">{{ url('/app') }}</code>
+                                            above ({{ strlen(url('/app')) }} characters). It redirects to the
+                                            store URL below, so customers land in the same place while the
+                                            thank-you fits in one billed message instead of two.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label for="app_store_url" class="block text-sm font-medium text-gray-700">App store URL (redirect destination)</label>
+                                    <input type="url" name="app_store_url" id="app_store_url"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                        value="{{ $settings['app_store_url'] ?? '' }}"
+                                        placeholder="https://play.google.com/store/apps/details?id=co.ke.eldogas.customer">
+                                    <p class="mt-1 text-xs text-gray-500">
+                                        Where <code>{{ url('/app') }}</code> sends people. Never sent by SMS,
+                                        so its length costs nothing &mdash; change it any time without
+                                        touching message copy.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- System Features -->
                         <div class="bg-gray-50 p-4 rounded-lg">
                             <h3 class="text-lg font-medium text-gray-900 mb-4">System Features</h3>
@@ -259,4 +377,49 @@
         });
     </script>
     @endpush
+
+    {{--
+        Inlined, not pushed: layouts/app.blade.php renders no @stack('scripts'),
+        so anything in the @push block above is silently dropped.
+    --}}
+    <script>
+        (function () {
+            const input = document.getElementById('sms_app_link');
+            const readout = document.getElementById('smsLinkCost');
+            if (!input || !readout) return;
+
+            // The thank-you message without its link, measured server-side so
+            // this stays honest if the copy changes.
+            const BASE_LENGTH = {{ mb_strlen("Thank you Evans! Order #49 complete.\nOrder gas online & get FREE home delivery:\n") }};
+
+            function segmentsFor(length) {
+                if (length <= 160) return 1;
+                return Math.ceil(length / 153);
+            }
+
+            function refresh() {
+                const link = input.value.trim();
+
+                if (link === '') {
+                    readout.textContent = 'No link — the thank-you sends without the offer.';
+                    readout.className = 'mt-1 text-xs text-gray-500';
+                    return;
+                }
+
+                const total = BASE_LENGTH + link.length;
+                const segments = segmentsFor(total);
+
+                readout.textContent = 'Link is ' + link.length + ' characters. Thank-you message: '
+                    + total + ' chars = ' + segments + ' billed message' + (segments === 1 ? '' : 's')
+                    + ' per customer.';
+
+                readout.className = segments === 1
+                    ? 'mt-1 text-xs font-medium text-green-700'
+                    : 'mt-1 text-xs font-medium text-orange-700';
+            }
+
+            input.addEventListener('input', refresh);
+            refresh();
+        })();
+    </script>
 </x-app-layout>

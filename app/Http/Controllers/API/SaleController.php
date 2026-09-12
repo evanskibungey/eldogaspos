@@ -332,11 +332,18 @@ class SaleController extends Controller
                 ], 422);
             }
             
-            // Update sale status
-            $sale->status = 'voided';
-            $sale->void_reason = $request->reason;
-            $sale->voided_by = auth()->id();
-            $sale->voided_at = now();
+            // Update sale status.
+            //
+            // void_reason / voided_by / voided_at were assigned here but have
+            // never existed as columns, so this write always failed. The reason
+            // and actor are appended to notes until dedicated columns are added.
+            $sale->status = \App\Models\Sale::STATUS_VOIDED;
+            $sale->notes = trim(
+                ($sale->notes ? $sale->notes . "\n" : '')
+                . 'VOIDED ' . now()->format('Y-m-d H:i')
+                . ' by user #' . (auth()->id() ?? 'system')
+                . ': ' . $request->reason
+            );
             $sale->save();
             
             // Restore stock for each item and create stock movement records

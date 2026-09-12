@@ -76,7 +76,10 @@
                                 <thead class="bg-gray-50">
                                     <tr>
                                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Receipt #
+                                            Order #
+                                        </th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Receipt Ref.
                                         </th>
                                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                             Date
@@ -103,8 +106,15 @@
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
                                     @foreach($sales as $sale)
-                                        <tr class="hover:bg-gray-50 transition-colors duration-150">
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        <tr class="hover:bg-gray-50 transition-colors duration-150 {{ $sale->isVoided() ? 'opacity-60' : '' }}">
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 tabular-nums">
+                                                @if($sale->order_number !== null)
+                                                    {{ $sale->order_number }}
+                                                @else
+                                                    <span class="text-gray-400 font-normal">&mdash;</span>
+                                                @endif
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                 {{ $sale->receipt_number }}
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

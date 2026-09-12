@@ -15,7 +15,16 @@ class SaleItem extends Model
         'quantity',
         'unit_price',
         'subtotal',
+        'order_number',
         'serial_number'
+    ];
+
+    protected $casts = [
+        'quantity' => 'integer',
+        'unit_price' => 'decimal:2',
+        'subtotal' => 'decimal:2',
+        // Sellable stock of this product immediately before the line was sold.
+        'order_number' => 'integer',
     ];
 
     public function sale()

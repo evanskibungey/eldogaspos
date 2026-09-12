@@ -10,8 +10,16 @@ class CylinderTransaction extends Model
 {
     use HasFactory;
 
+    // Effect this transaction currently has on product stock.
+    public const STOCK_RESERVED = 'reserved';
+    public const STOCK_COMMITTED = 'committed';
+    public const STOCK_RELEASED = 'released';
+
     protected $fillable = [
         'reference_number',
+        'order_number',
+        'stock_status',
+        'stock_committed_at',
         'customer_id',
         'customer_name',
         'customer_phone',
@@ -35,8 +43,10 @@ class CylinderTransaction extends Model
         'drop_off_date' => 'datetime',
         'collection_date' => 'datetime',
         'return_date' => 'datetime',
+        'stock_committed_at' => 'datetime',
         'amount' => 'decimal:2',
         'deposit_amount' => 'decimal:2',
+        'order_number' => 'integer',
     ];
 
     // Relationships
@@ -139,6 +149,64 @@ class CylinderTransaction extends Model
     public function isPaid()
     {
         return $this->payment_status === 'paid';
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Stock state
+    |--------------------------------------------------------------------------
+    |
+    | Units are reserved when a drop-off is created and committed when the
+    | customer collects. Advance collections skip straight to committed, since
+    | the gas physically leaves the yard at creation. These guards are what
+    | prevent a transaction affecting stock twice.
+    |
+    */
+
+    public function hasReservedStock(): bool
+    {
+        return $this->stock_status === self::STOCK_RESERVED;
+    }
+
+    public function hasCommittedStock(): bool
+    {
+        return $this->stock_status === self::STOCK_COMMITTED;
+    }
+
+    public function stockAlreadyReleased(): bool
+    {
+        return $this->stock_status === self::STOCK_RELEASED;
+    }
+
+    /**
+     * Line items shaped for StockService.
+     */
+    public function stockLines(): array
+    {
+        return $this->items->map(fn ($item) => [
+            'product_id' => $item->product_id,
+            'quantity' => $item->quantity,
+            'unit_price' => $item->unit_price,
+            'serial_number' => null,
+        ])->all();
+    }
+
+    /**
+     * Product ids in the order they were added, for order-number selection.
+     */
+    public function productIdsInOrder(): array
+    {
+        return $this->items->pluck('product_id')->map(fn ($id) => (int) $id)->all();
+    }
+
+    /**
+     * The number shown to the customer, once stock has been committed.
+     */
+    public function getDisplayNumberAttribute(): string
+    {
+        return $this->order_number !== null
+            ? (string) $this->order_number
+            : (string) $this->reference_number;
     }
 
     public function getTotalAmount()

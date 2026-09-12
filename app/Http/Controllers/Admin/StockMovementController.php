@@ -5,12 +5,20 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\StockMovement;
 use App\Models\Product;
+use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 
 class StockMovementController extends Controller
 {
+    protected $stockService;
+
+    public function __construct(StockService $stockService)
+    {
+        $this->stockService = $stockService;
+    }
+
     /**
      * Display a listing of stock movements.
      */
@@ -67,36 +75,25 @@ class StockMovementController extends Controller
         ]);
 
         try {
-            DB::transaction(function() use ($request) {
-                $product = Product::findOrFail($request->product_id);
-                
-                // Calculate new stock level
-                $newStock = $request->type === 'in' 
-                    ? $product->stock + $request->quantity
-                    : $product->stock - $request->quantity;
+            // Delegated to StockService: the previous read-modify-write took no
+            // row lock, so two concurrent adjustments could lose one another.
+            // The service locks the row, applies the delta and writes the ledger
+            // entry in a single transaction, and refuses to drop stock below the
+            // quantity reserved for cylinder collections awaiting pickup.
+            $result = $this->stockService->adjustStockBy(
+                (int) $request->product_id,
+                $request->type === 'in' ? (int) $request->quantity : -(int) $request->quantity,
+                $request->notes ?? 'Manual stock adjustment',
+                'manual_adjustment',
+                $request->serial_number,
+                $request->unit_price !== null ? (float) $request->unit_price : null
+            );
 
-                // Validate new stock level
-                if ($newStock < 0) {
-                    throw new \Exception('Stock cannot be negative');
-                }
-
-                // Create stock movement record
-                StockMovement::create([
-                    'product_id' => $request->product_id,
-                    'type' => $request->type,
-                    'quantity' => $request->quantity,
-                    'unit_price' => $request->unit_price,
-                    'reference_type' => 'manual_adjustment',
-                    'notes' => $request->notes,
-                    'serial_number' => $request->serial_number,
-                    'created_by' => Auth::id()
-                ]);
-
-                // Update product stock
-                $product->update(['stock' => $newStock]);
-            });
-
-            return redirect()->back()->with('success', 'Stock adjusted successfully');
+            return redirect()->back()->with(
+                'success',
+                "Stock adjusted: {$result['stock_before']} -> {$result['stock_after']} "
+                    . "({$result['available_after']} available to sell)"
+            );
         } catch (\Exception $e) {
             return redirect()->back()
                 ->with('error', 'Error adjusting stock: ' . $e->getMessage())

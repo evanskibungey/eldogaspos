@@ -125,9 +125,11 @@ class FixOfflineSync extends Command
         // Check 6: Frontend assets
         $this->info('6. Checking frontend assets...');
         
+        // public/js/pos-system.js is no longer listed: the POS component is
+        // declared inline in pos/dashboard.blade.php, which always overwrote
+        // the file's copy, so the file was dead weight and has been removed.
         $assets = [
             'public/sw.js' => 'Service Worker',
-            'public/js/pos-system.js' => 'POS System JS',
             'public/css/offline.css' => 'Offline CSS'
         ];
         
@@ -148,9 +150,9 @@ class FixOfflineSync extends Command
         $this->info('7. Checking API routes...');
         
         $routes = [
-            'api/v1/offline/products',
-            'api/v1/offline/sync-sale',
-            'api/v1/offline/sync-status'
+            'api/offline/products',
+            'api/offline/sync-sale',
+            'api/offline/sync-status'
         ];
         
         $routeCollection = app('router')->getRoutes();

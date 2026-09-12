@@ -7,10 +7,18 @@ use App\Models\Product;
 use App\Models\Category;
 use App\Models\StockMovement;
 use App\Models\Setting;
+use App\Services\StockService;
 use Illuminate\Http\Request;
 
 class InventoryController extends Controller
 {
+    protected $stockService;
+
+    public function __construct(StockService $stockService)
+    {
+        $this->stockService = $stockService;
+    }
+
     /**
      * Display inventory management page for POS.
      *
@@ -118,23 +126,27 @@ class InventoryController extends Controller
         ]);
         
         $product = Product::findOrFail($id);
-        $oldStock = $product->stock;
-        $newStock = $request->new_stock;
-        
-        // Create stock movement record
-        StockMovement::create([
-            'product_id' => $product->id,
-            'type' => $newStock > $oldStock ? 'in' : 'out',
-            'quantity' => abs($newStock - $oldStock),
-            'reference_type' => 'manual_adjustment',
-            'notes' => $request->notes ?? 'Manual stock adjustment',
-            'created_by' => auth()->id()
-        ]);
-        
-        // Update the product stock
-        $product->update(['stock' => $newStock]);
-        
-        return redirect()->route('pos.inventory.product', $product->id)
-            ->with('success', 'Stock updated successfully');
+
+        try {
+            // Previously the ledger row and the product were written with no
+            // transaction at all, so a failure between them left the two
+            // disagreeing. StockService does both under one lock.
+            $result = $this->stockService->setStockLevel(
+                $product->id,
+                (int) $request->new_stock,
+                $request->notes ?? 'Manual stock adjustment'
+            );
+
+            return redirect()->route('pos.inventory.product', $product->id)
+                ->with(
+                    'success',
+                    "Stock updated: {$result['stock_before']} -> {$result['stock_after']} "
+                        . "({$result['available_after']} available to sell)"
+                );
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', $e->getMessage())
+                ->withInput();
+        }
     }
 }

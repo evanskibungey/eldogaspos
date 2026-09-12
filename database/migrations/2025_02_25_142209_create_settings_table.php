@@ -44,7 +44,7 @@ return new class extends Migration
             'currency_symbol' => 'KSh',
             'tax_percentage' => '16',
             'low_stock_threshold' => '10',
-            'receipt_footer' => 'Thank you for your business!',
+            'receipt_footer' => 'ItishaTunaDeliver, Asante.',
             'enable_stock_alerts' => '1',
             'enable_credit_sales' => '1',
             'enable_receipt_printing' => '1',

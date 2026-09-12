@@ -1,5 +1,8 @@
 // Service Worker for Offline POS Functionality
-const CACHE_NAME = 'eldogas-pos-v1';
+// Bumping this name is what evicts every previously cached page and asset.
+// It MUST be changed on any deployment that alters markup or assets, otherwise
+// browsers keep serving the old build from the previous cache.
+const CACHE_NAME = 'eldogas-pos-v3-20260911';
 const STATIC_CACHE_URLS = [
     '/',
     '/pos/dashboard',
@@ -52,12 +55,19 @@ self.addEventListener('fetch', event => {
     }
     
     // Handle different types of requests
-    if (request.url.includes('/api/v1/offline/')) {
+    if (request.url.includes('/api/offline/')) {
         // API requests - cache with network first strategy
         event.respondWith(handleApiRequest(request));
     } else if (request.url.includes('/pos/') || request.url.includes('/dashboard')) {
-        // POS pages - cache with cache first strategy
-        event.respondWith(handlePageRequest(request));
+        // POS pages - NETWORK FIRST, falling back to cache when offline.
+        //
+        // This was cache-first, which meant a till kept rendering whatever HTML
+        // it saw first - forever. After a deployment, staff carried on seeing the
+        // previous version of the dashboard with no way to get the new one short
+        // of clearing site data. Serving fresh markup when the network is up, and
+        // the cached copy only when it is not, is what an offline fallback should
+        // do; it does not weaken offline support.
+        event.respondWith(handleNetworkFirst(request));
     } else if (request.url.includes('/storage/') || request.url.includes('/images/')) {
         // Images - cache first strategy
         event.respondWith(handleImageRequest(request));

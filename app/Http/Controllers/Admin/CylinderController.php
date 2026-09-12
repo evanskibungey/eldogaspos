@@ -7,8 +7,14 @@ use App\Models\CylinderTransaction;
 use App\Models\CylinderTransactionItem;
 use App\Models\Customer;
 use App\Models\Product;
+use App\Models\SmsLog;
 use App\Services\StockService;
 use App\Services\ReferenceNumberService;
+use App\Services\OrderNumberService;
+use App\Services\Sms\PhoneNumber;
+use App\Services\Sms\ReceiptMessage;
+use App\Services\Sms\SmsService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -18,11 +24,16 @@ class CylinderController extends Controller
 {
     protected $stockService;
     protected $referenceNumberService;
+    protected $orderNumberService;
 
-    public function __construct(StockService $stockService, ReferenceNumberService $referenceNumberService)
-    {
+    public function __construct(
+        StockService $stockService,
+        ReferenceNumberService $referenceNumberService,
+        OrderNumberService $orderNumberService
+    ) {
         $this->stockService = $stockService;
         $this->referenceNumberService = $referenceNumberService;
+        $this->orderNumberService = $orderNumberService;
     }
 
     public function index(Request $request)
@@ -82,88 +93,64 @@ class CylinderController extends Controller
 
     public function paidDropOffs(Request $request)
     {
-        $period = $request->get('period', 'daily');
-        $isPosContext = $request->route() && str_starts_with($request->route()->getName(), 'pos.');
-
-        $query = CylinderTransaction::with(['customer', 'createdBy', 'completedBy', 'items.product.category'])
-            ->active()
-            ->dropOffs()
-            ->paid()
-            ->orderBy('created_at', 'desc');
-
-        // Apply date filter
-        $query = $this->applyDateFilter($query, $period);
-
-        $perPage = $isPosContext ? 15 : 20;
-        $transactions = $query->paginate($perPage);
-
-        $stats = $this->calculatePeriodStats($period);
-
-        return view('admin.cylinders.paid-drop-offs', compact('transactions', 'stats', 'period'));
+        return $this->renderList($request, 'paid-drop-offs', function ($query) {
+            return $query->active()->dropOffs()->paid();
+        });
     }
 
     public function unpaidDropOffs(Request $request)
     {
-        $period = $request->get('period', 'daily');
-        $isPosContext = $request->route() && str_starts_with($request->route()->getName(), 'pos.');
-
-        $query = CylinderTransaction::with(['customer', 'createdBy', 'completedBy', 'items.product.category'])
-            ->active()
-            ->dropOffs()
-            ->pending()
-            ->orderBy('created_at', 'desc');
-
-        // Apply date filter
-        $query = $this->applyDateFilter($query, $period);
-
-        $perPage = $isPosContext ? 15 : 20;
-        $transactions = $query->paginate($perPage);
-
-        $stats = $this->calculatePeriodStats($period);
-
-        return view('admin.cylinders.unpaid-drop-offs', compact('transactions', 'stats', 'period'));
+        return $this->renderList($request, 'unpaid-drop-offs', function ($query) {
+            return $query->active()->dropOffs()->pending();
+        });
     }
 
+    /**
+     * Everything still owed.
+     *
+     * Deliberately not restricted to active transactions. A drop-off completed
+     * while payment was pending stays owed, and filtering on active() made it
+     * vanish from the only screen that chases payment - the debt became
+     * invisible and, since update() refuses completed rows, unrecordable.
+     */
     public function pendingPayments(Request $request)
     {
-        $period = $request->get('period', 'daily');
-        $isPosContext = $request->route() && str_starts_with($request->route()->getName(), 'pos.');
-
-        $query = CylinderTransaction::with(['customer', 'createdBy', 'completedBy', 'items.product.category'])
-            ->active()
-            ->pending()
-            ->orderBy('created_at', 'desc');
-
-        // Apply date filter
-        $query = $this->applyDateFilter($query, $period);
-
-        $perPage = $isPosContext ? 15 : 20;
-        $transactions = $query->paginate($perPage);
-
-        $stats = $this->calculatePeriodStats($period);
-
-        return view('admin.cylinders.pending-payments', compact('transactions', 'stats', 'period'));
+        return $this->renderList($request, 'pending-payments', function ($query) {
+            return $query->pending()->where('status', '!=', 'cancelled');
+        });
     }
 
     public function advanceCollections(Request $request)
     {
+        return $this->renderList($request, 'advance-collections', function ($query) {
+            return $query->active()->advanceCollections();
+        });
+    }
+
+    /**
+     * Shared body of the four cylinder list screens: same eager loads, same
+     * date window, same pagination, same view contract.
+     */
+    private function renderList(Request $request, string $view, callable $scope)
+    {
         $period = $request->get('period', 'daily');
         $isPosContext = $request->route() && str_starts_with($request->route()->getName(), 'pos.');
 
-        $query = CylinderTransaction::with(['customer', 'createdBy', 'completedBy', 'items.product.category'])
-            ->active()
-            ->advanceCollections()
-            ->orderBy('created_at', 'desc');
+        [$start, $end, $startDate, $endDate] = $this->resolveDateRange($request, $period);
 
-        // Apply date filter
-        $query = $this->applyDateFilter($query, $period);
+        $query = $scope(
+            CylinderTransaction::with(['customer', 'createdBy', 'completedBy', 'items.product.category'])
+        )->orderBy('created_at', 'desc');
 
-        $perPage = $isPosContext ? 15 : 20;
-        $transactions = $query->paginate($perPage);
+        $query = $this->applyDateRange($query, $start, $end);
 
+        $transactions = $query->paginate($isPosContext ? 15 : 20)->withQueryString();
         $stats = $this->calculatePeriodStats($period);
 
-        return view('admin.cylinders.advance-collections', compact('transactions', 'stats', 'period'));
+        return view(
+            'admin.cylinders.' . $view,
+            compact('transactions', 'stats', 'period', 'startDate', 'endDate')
+        );
     }
 
     /**
@@ -180,6 +167,64 @@ class CylinderController extends Controller
             default:
                 return $query->whereDate('drop_off_date', today());
         }
+    }
+
+    /**
+     * Resolve the date window a list screen is showing.
+     *
+     * Every list view renders start/end date inputs and echoes the values back
+     * into its filter form, export link and pagination. The controller never
+     * supplied them, so the views referenced an undefined $startDate and every
+     * one of these pages returned a 500. An explicit range wins over the named
+     * period; otherwise the period defines the window.
+     *
+     * @return array{0:?Carbon,1:?Carbon,2:string,3:string} start, end, and the
+     *         Y-m-d strings the views echo back.
+     */
+    private function resolveDateRange(Request $request, string $period): array
+    {
+        if ($request->filled('start_date') || $request->filled('end_date')) {
+            $start = $request->filled('start_date')
+                ? Carbon::parse($request->input('start_date'))->startOfDay()
+                : Carbon::today()->startOfDay();
+
+            $end = $request->filled('end_date')
+                ? Carbon::parse($request->input('end_date'))->endOfDay()
+                : Carbon::today()->endOfDay();
+
+            return [$start, $end, $start->toDateString(), $end->toDateString()];
+        }
+
+        switch ($period) {
+            case 'weekly':
+                $start = now()->startOfWeek();
+                break;
+            case 'monthly':
+                $start = now()->startOfMonth();
+                break;
+            case 'all':
+                // No window at all - the views render empty date inputs.
+                return [null, null, '', ''];
+            default:
+                $start = today()->startOfDay();
+                break;
+        }
+
+        $end = now()->endOfDay();
+
+        return [$start, $end, $start->toDateString(), $end->toDateString()];
+    }
+
+    /**
+     * Constrain a query to a resolved window. A null start means "everything".
+     */
+    private function applyDateRange($query, ?Carbon $start, ?Carbon $end)
+    {
+        if ($start === null) {
+            return $query;
+        }
+
+        return $query->whereBetween('drop_off_date', [$start, $end]);
     }
 
     /**
@@ -224,12 +269,14 @@ class CylinderController extends Controller
 
     public function create()
     {
-        $customers = Customer::where('status', 'active')
+        $customers = Customer::selectable()
             ->orderBy('name')
             ->get();
 
+        // Only offer what is genuinely sellable: units already reserved for
+        // other collections awaiting pickup are excluded.
         $products = Product::where('status', 'active')
-            ->where('stock', '>', 0)
+            ->inStock()
             ->with('category')
             ->orderBy('created_at', 'asc')
             ->get();
@@ -260,11 +307,10 @@ class CylinderController extends Controller
             if ($request->customer_id) {
                 $customer = Customer::findOrFail($request->customer_id);
             } else {
-                $customer = Customer::create([
-                    'name' => $request->customer_name,
-                    'phone' => $request->customer_phone,
-                    'status' => 'active',
-                ]);
+                $customer = $this->findOrCreateCustomer(
+                    $request->customer_name,
+                    $request->customer_phone
+                );
             }
 
             // Calculate total and prepare items
@@ -318,33 +364,73 @@ class CylinderController extends Controller
                 ]);
             }
 
-            // Handle customer balance for pending advance collection
-            if ($request->transaction_type === 'advance_collection' && $request->payment_status === 'pending') {
-                $totalWithDeposit = $totalAmount + ($request->deposit_amount ?? 0);
-                $customer->increment('balance', $totalWithDeposit);
+            // Customer balance.
+            //
+            // The deposit is an obligation the customer carries until the empty
+            // cylinder comes back, so it is applied whenever an advance
+            // collection is created - not only when the gas is unpaid. Applying
+            // it unconditionally here is what keeps completion, cancellation and
+            // deletion able to reverse it symmetrically; previously a *paid*
+            // advance collection added nothing but still had its deposit
+            // refunded on completion, driving the balance negative.
+            if ($request->transaction_type === 'advance_collection') {
+                $deposit = (float) ($request->deposit_amount ?? 0);
+
+                if ($deposit > 0) {
+                    $customer->increment('balance', $deposit);
+                }
+
+                if ($request->payment_status === 'pending') {
+                    $customer->increment('balance', $totalAmount);
+                }
             }
 
-            // Deduct inventory immediately for ALL transactions using StockService
-            // Stock is no longer available once cylinders are out (either for refill or with customer)
-            $stockItems = [];
-            foreach ($transaction->items as $item) {
-                $stockItems[] = [
-                    'product_id' => $item->product_id,
-                    'quantity' => $item->quantity,
-                    'unit_price' => $item->unit_price,
-                    'serial_number' => null
-                ];
-            }
+            // Stock.
+            //
+            // A drop-off leaves the cylinder with us: nothing physically moves
+            // yet, so the units are reserved. They stop being sellable straight
+            // away but are only deducted when the customer collects.
+            //
+            // An advance collection hands the gas over immediately, so that IS
+            // the collection moment and stock is deducted here.
+            $transaction->load('items');
+            $stockItems = $transaction->stockLines();
 
-            $transactionType = $transaction->isDropOff() ? 'drop-off' : 'advance collection';
-            $this->stockService->deductMultipleStock(
-                $stockItems,
-                'cylinder_transaction',
-                $transaction->id,
-                "Stock deducted - Cylinder {$transactionType} transaction #{$transaction->id} (Ref: {$transaction->reference_number}, Customer: {$transaction->customer_name}, Product: {product_name}, Qty: {quantity})"
-            );
+            if ($transaction->isDropOff()) {
+                $this->stockService->reserveMultipleStock(
+                    $stockItems,
+                    'cylinder_transaction',
+                    $transaction->id
+                );
+
+                $transaction->update(['stock_status' => CylinderTransaction::STOCK_RESERVED]);
+            } else {
+                $stockResults = $this->stockService->deductMultipleStock(
+                    $stockItems,
+                    'cylinder_transaction',
+                    $transaction->id,
+                    "Stock deducted - Cylinder advance collection #{$transaction->id} "
+                        . "(Ref: {$transaction->reference_number}, Customer: {$transaction->customer_name}, "
+                        . 'Product: {product_name}, Qty: {quantity})'
+                );
+
+                $transaction->update([
+                    'stock_status' => CylinderTransaction::STOCK_COMMITTED,
+                    'stock_committed_at' => now(),
+                    'order_number' => $this->orderNumberService->forCollection(
+                        $stockResults,
+                        $transaction->productIdsInOrder()
+                    ),
+                ]);
+            }
 
             DB::commit();
+
+            // fresh() matters: `status` is not in the create payload, it comes
+            // from the column default, so the in-memory model has status=null
+            // and isActive() reads false. That silently dropped the "keep this
+            // ref for collection" line from every drop-off receipt.
+            $this->sendCylinderReceipt($transaction->fresh());
 
             $isPosContext = $request->route() && str_starts_with($request->route()->getName(), 'pos.');
             $receiptRoute = $isPosContext ? 'pos.cylinders.receipt' : 'admin.cylinders.receipt';
@@ -467,45 +553,75 @@ class CylinderController extends Controller
                 'notes' => $request->notes ?? $cylinder->notes,
             ];
 
+            $cylinder->load('items');
+
             if ($cylinder->isDropOff()) {
-                // Drop-off completion: customer is collecting the refilled cylinders
+                // Drop-off completion: the customer is collecting the refilled
+                // cylinders, so this is the moment stock physically leaves.
                 $updates['collection_date'] = now();
 
-                // Allow updating payment status during completion
-                if ($request->filled('payment_status')) {
-                    $updates['payment_status'] = $request->payment_status;
+                // Convert the reservation taken at drop-off into a real
+                // deduction. Guarded on stock_status so a transaction can never
+                // be deducted twice - a repeated complete(), or a legacy row
+                // that was already deducted at creation, is left alone.
+                if ($cylinder->hasReservedStock()) {
+                    $stockResults = $this->stockService->commitReservedStock(
+                        $cylinder->stockLines(),
+                        'cylinder_collection',
+                        $cylinder->id,
+                        "Stock collected - Cylinder drop-off #{$cylinder->id} "
+                            . "(Ref: {$cylinder->reference_number}, Customer: {$cylinder->customer_name}, "
+                            . 'Product: {product_name}, Qty: {quantity})'
+                    );
+
+                    $updates['stock_status'] = CylinderTransaction::STOCK_COMMITTED;
+                    $updates['stock_committed_at'] = now();
+                    $updates['order_number'] = $this->orderNumberService->forCollection(
+                        $stockResults,
+                        $cylinder->productIdsInOrder()
+                    );
+                } else {
+                    Log::info('Cylinder collection skipped stock deduction', [
+                        'cylinder_id' => $cylinder->id,
+                        'stock_status' => $cylinder->stock_status,
+                        'reason' => 'stock was not in a reserved state',
+                    ]);
                 }
-                // Note: Payment status remains as-is if not specified
-                // This allows completing transactions even with pending payment
-
-                // Inventory was already deducted when transaction was created
-                // No stock changes needed on completion
-
             } else {
-                // Advance collection completion: customer returning empty cylinders
+                // Advance collection completion: the customer is returning the
+                // empty cylinder. The gas left at creation, so stock does not
+                // move here - an empty cylinder is not sellable stock.
                 $updates['return_date'] = now();
 
-                // Process refund of deposit
-                if ($cylinder->deposit_amount > 0) {
+                // Clear the deposit obligation raised at creation.
+                if ($cylinder->deposit_amount > 0 && $cylinder->customer) {
                     $cylinder->customer->decrement('balance', $cylinder->deposit_amount);
                 }
+            }
 
-                // If payment was pending, mark as paid and adjust balance
-                if ($cylinder->isPending()) {
-                    $updates['payment_status'] = 'paid';
-                    $cylinder->customer->decrement('balance', $cylinder->amount);
-                }
-
-                // Inventory was already deducted when transaction was created
-                // No stock changes needed on completion
+            // Payment.
+            //
+            // Handing the cylinders over is the moment money changes hands, so
+            // completing settles the transaction. Doing it here rather than in
+            // the per-type branches keeps drop-offs and advance collections
+            // behaving the same way, and spares the cashier having to find the
+            // order again afterwards just to mark it paid.
+            //
+            // An explicit payment_status=pending still wins, for the case where
+            // the customer genuinely collects before paying.
+            if ($request->input('payment_status', 'paid') === 'paid' && $cylinder->isPending()) {
+                $this->reversePaymentObligation($cylinder);
+                $updates['payment_status'] = 'paid';
             }
 
             $cylinder->update($updates);
 
             DB::commit();
 
-            $message = $cylinder->isDropOff() 
-                ? 'Customer has collected the refilled cylinders!' 
+            $this->sendCylinderThankYou($cylinder->fresh());
+
+            $message = $cylinder->isDropOff()
+                ? 'Customer has collected the refilled cylinders!'
                 : 'Empty cylinders returned and deposit refunded!';
 
             $isPosContext = $request->route() && str_starts_with($request->route()->getName(), 'pos.');
@@ -530,33 +646,14 @@ class CylinderController extends Controller
         try {
             DB::beginTransaction();
 
-            // Reverse customer balance changes
-            if ($cylinder->isAdvanceCollection() && $cylinder->isPending()) {
-                $totalAmount = $cylinder->amount + $cylinder->deposit_amount;
-                $cylinder->customer->decrement('balance', $totalAmount);
-            }
+            $cylinder->load('items');
 
-            // Restore inventory using StockService
-            $stockItems = [];
-            foreach ($cylinder->items as $item) {
-                $stockItems[] = [
-                    'product_id' => $item->product_id,
-                    'quantity' => $item->quantity,
-                    'unit_price' => $item->unit_price,
-                    'serial_number' => null
-                ];
-            }
-
-            $transactionType = $cylinder->isDropOff() ? 'drop-off' : 'advance collection';
-            $this->stockService->restoreMultipleStock(
-                $stockItems,
-                'cylinder_cancellation',
-                $cylinder->id,
-                "Stock restored - Cylinder {$transactionType} transaction #{$cylinder->id} cancelled (Ref: {$cylinder->reference_number}, Customer: {$cylinder->customer_name}, Product: {product_name}, Qty: {quantity})"
-            );
+            $this->reverseCustomerBalance($cylinder);
+            $this->unwindStock($cylinder, 'cancelled');
 
             $cylinder->update([
                 'status' => 'cancelled',
+                'stock_status' => CylinderTransaction::STOCK_RELEASED,
                 'completed_by' => Auth::id(),
             ]);
 
@@ -581,31 +678,14 @@ class CylinderController extends Controller
         try {
             DB::beginTransaction();
 
-            // Reverse customer balance changes
-            if ($cylinder->isAdvanceCollection() && $cylinder->isPending()) {
-                $totalAmount = $cylinder->amount + $cylinder->deposit_amount;
-                $cylinder->customer->decrement('balance', $totalAmount);
-            }
+            $cylinder->load('items');
 
-            // Restore inventory using StockService
-            $stockItems = [];
-            foreach ($cylinder->items as $item) {
-                $stockItems[] = [
-                    'product_id' => $item->product_id,
-                    'quantity' => $item->quantity,
-                    'unit_price' => $item->unit_price,
-                    'serial_number' => null
-                ];
-            }
+            $this->reverseCustomerBalance($cylinder);
+            $this->unwindStock($cylinder, 'deleted');
 
-            $transactionType = $cylinder->isDropOff() ? 'drop-off' : 'advance collection';
-            $this->stockService->restoreMultipleStock(
-                $stockItems,
-                'cylinder_cancellation',
-                $cylinder->id,
-                "Stock restored - Cylinder {$transactionType} transaction #{$cylinder->id} deleted (Ref: {$cylinder->reference_number}, Customer: {$cylinder->customer_name}, Product: {product_name}, Qty: {quantity})"
-            );
-
+            // Mark the state before deleting so the reversal is recorded even
+            // though the row is about to disappear from the audit trail.
+            $cylinder->update(['stock_status' => CylinderTransaction::STOCK_RELEASED]);
             $cylinder->delete();
 
             DB::commit();
@@ -619,11 +699,450 @@ class CylinderController extends Controller
         }
     }
 
+    /**
+     * Undo the balance entries raised when an advance collection was created.
+     *
+     * Mirrors store() exactly: the deposit obligation always applies, the gas
+     * amount only while it is still unpaid. Keeping the two symmetric is what
+     * stops a deposit being stranded on a customer's account when a paid
+     * advance collection is cancelled.
+     */
+    private function reverseCustomerBalance(CylinderTransaction $cylinder): void
+    {
+        if (!$cylinder->isAdvanceCollection() || !$cylinder->customer) {
+            return;
+        }
+
+        if ($cylinder->deposit_amount > 0) {
+            $cylinder->customer->decrement('balance', $cylinder->deposit_amount);
+        }
+
+        if ($cylinder->isPending()) {
+            $cylinder->customer->decrement('balance', $cylinder->amount);
+        }
+    }
+
+    /**
+     * Undo whatever this transaction did to stock, based on what it actually
+     * did rather than on its type.
+     *
+     * A reserved drop-off never moved stock, so the reservation is simply
+     * dropped. A committed transaction did move stock, so it is restored.
+     * An already-released transaction is left alone, which makes repeated
+     * cancel/delete calls harmless.
+     */
+    private function unwindStock(CylinderTransaction $cylinder, string $action): void
+    {
+        if ($cylinder->items->isEmpty() || $cylinder->stockAlreadyReleased()) {
+            return;
+        }
+
+        $stockItems = $cylinder->stockLines();
+        $transactionType = $cylinder->isDropOff() ? 'drop-off' : 'advance collection';
+
+        if ($cylinder->hasReservedStock()) {
+            $this->stockService->releaseMultipleReservations(
+                $stockItems,
+                'cylinder_cancellation',
+                $cylinder->id
+            );
+
+            Log::info('Cylinder reservation released', [
+                'cylinder_id' => $cylinder->id,
+                'action' => $action,
+            ]);
+
+            return;
+        }
+
+        $this->stockService->restoreMultipleStock(
+            $stockItems,
+            'cylinder_cancellation',
+            $cylinder->id,
+            "Stock restored - Cylinder {$transactionType} transaction #{$cylinder->id} {$action} "
+                . "(Ref: {$cylinder->reference_number}, Customer: {$cylinder->customer_name}, "
+                . 'Product: {product_name}, Qty: {quantity})'
+        );
+    }
+
+    /**
+     * Queue the opening receipt: what the customer left with us, and what they
+     * owe. Sent when the transaction is created.
+     */
+    private function sendCylinderReceipt(CylinderTransaction $transaction): void
+    {
+        if (!setting('sms_send_cylinder_receipts', true)) {
+            return;
+        }
+
+        $this->queueCylinderSms(
+            $transaction,
+            ReceiptMessage::cylinderCreated($transaction),
+            SmsLog::PURPOSE_CYLINDER_RECEIPT
+        );
+    }
+
+    /**
+     * Queue the closing thank-you, which also carries the online-ordering
+     * offer. Sent when the transaction is completed.
+     *
+     * Gated separately from the opening receipt so the promotional message can
+     * be switched off without losing the transactional one.
+     */
+    private function sendCylinderThankYou(CylinderTransaction $transaction): void
+    {
+        if (!setting('sms_send_thank_you', true)) {
+            return;
+        }
+
+        $this->queueCylinderSms(
+            $transaction,
+            ReceiptMessage::cylinderCompleted($transaction),
+            SmsLog::PURPOSE_CYLINDER_THANK_YOU
+        );
+    }
+
+    /**
+     * Queue confirmation that a later payment was received.
+     */
+    private function sendPaymentConfirmation(CylinderTransaction $transaction): void
+    {
+        if (!setting('sms_send_cylinder_receipts', true)) {
+            return;
+        }
+
+        $this->queueCylinderSms(
+            $transaction,
+            ReceiptMessage::paymentReceived($transaction),
+            SmsLog::PURPOSE_PAYMENT_RECEIVED
+        );
+    }
+
+    /**
+     * Shared plumbing for the cylinder messages.
+     *
+     * Cylinder transactions always capture a customer phone, so unlike POS
+     * sales these usually do send. Failures are swallowed on purpose: by the
+     * time a message is queued the transaction is committed and stock has
+     * already moved, so an SMS problem must not surface as a failed action.
+     */
+    private function queueCylinderSms(CylinderTransaction $transaction, string $message, string $purpose): void
+    {
+        try {
+            $transaction->loadMissing('items');
+
+            app(SmsService::class)->queue(
+                $transaction->customer_phone,
+                $message,
+                $purpose,
+                [
+                    'reference_type' => 'cylinder_transaction',
+                    'reference_id' => $transaction->id,
+                    'customer_id' => $transaction->customer_id,
+                ]
+            );
+        } catch (\Throwable $e) {
+            Log::error('Failed to queue cylinder SMS', [
+                'transaction_id' => $transaction->id,
+                'purpose' => $purpose,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Record payment against a transaction, whatever its completion state.
+     *
+     * This is the missing counterpart to complete(): a drop-off could be
+     * completed while unpaid, after which update() refused to touch it and no
+     * other code path wrote payment_status. The debt could never be cleared.
+     */
+    public function recordPayment(Request $request, CylinderTransaction $cylinder)
+    {
+        if ($cylinder->status === 'cancelled') {
+            return $this->paymentResponse($request, false, 'Cannot record payment against a cancelled transaction.');
+        }
+
+        if ($cylinder->isPaid()) {
+            return $this->paymentResponse($request, false, 'This transaction is already marked paid.');
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $this->settle($cylinder);
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Recording cylinder payment failed', [
+                'cylinder_id' => $cylinder->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->paymentResponse($request, false, 'Failed to record payment: ' . $e->getMessage());
+        }
+
+        $this->sendPaymentConfirmation($cylinder->fresh());
+
+        return $this->paymentResponse($request, true, 'Payment recorded.');
+    }
+
+    /**
+     * Mark several transactions paid at once, from the list screens' checkboxes.
+     */
+    public function bulkUpdatePaymentStatus(Request $request)
+    {
+        $validated = $request->validate([
+            'transaction_ids' => 'required|array|min:1',
+            'transaction_ids.*' => 'integer|exists:cylinder_transactions,id',
+            'payment_status' => 'required|in:paid',
+        ], [
+            'transaction_ids.required' => 'Select at least one transaction first.',
+            'payment_status.in' => 'Only marking transactions as paid is supported.',
+        ]);
+
+        $settled = 0;
+        $skipped = 0;
+
+        try {
+            DB::beginTransaction();
+
+            $transactions = CylinderTransaction::whereIn('id', $validated['transaction_ids'])
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($transactions as $transaction) {
+                // Re-checked per row rather than in the query: a row that was
+                // paid or cancelled between rendering the list and submitting
+                // it must be skipped, not double-settled.
+                if ($transaction->isPaid() || $transaction->status === 'cancelled') {
+                    $skipped++;
+                    continue;
+                }
+
+                $this->settle($transaction);
+                $settled++;
+            }
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Bulk cylinder payment update failed', ['error' => $e->getMessage()]);
+
+            return back()->withErrors(['error' => 'Failed to update payments: ' . $e->getMessage()]);
+        }
+
+        $message = "{$settled} transaction(s) marked paid.";
+        if ($skipped > 0) {
+            $message .= " {$skipped} skipped (already paid or cancelled).";
+        }
+
+        return back()->with('success', $message);
+    }
+
+    /**
+     * Mark one transaction paid and reverse whatever it put on the customer's
+     * balance.
+     *
+     * Only advance collections credit the balance at creation, so only they
+     * debit it here. Drop-offs never touched it, and debiting them would push
+     * the customer into false credit. Caller owns the transaction boundary.
+     */
+    private function settle(CylinderTransaction $cylinder): void
+    {
+        $this->reversePaymentObligation($cylinder);
+
+        $cylinder->update(['payment_status' => 'paid']);
+    }
+
+    /**
+     * Undo whatever the unpaid gas put on the customer's balance.
+     *
+     * Only advance collections credit the balance at creation, so only they
+     * debit it when settled; debiting a drop-off would push the customer into
+     * credit they never had. Shared by complete() and recordPayment() so the
+     * two cannot drift apart.
+     */
+    private function reversePaymentObligation(CylinderTransaction $cylinder): void
+    {
+        if ($cylinder->isAdvanceCollection() && $cylinder->customer) {
+            $cylinder->customer->decrement('balance', $cylinder->amount);
+        }
+    }
+
+    private function paymentResponse(Request $request, bool $ok, string $message)
+    {
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json(['success' => $ok, 'message' => $message], $ok ? 200 : 422);
+        }
+
+        return $ok
+            ? back()->with('success', $message)
+            : back()->withErrors(['error' => $message]);
+    }
+
+    /**
+     * Every cylinder transaction for one customer.
+     *
+     * The view for this already existed; only the route and this method were
+     * missing, which is why the link from the customer profile 500'd.
+     */
+    public function customerHistory(Request $request, Customer $customer)
+    {
+        $query = $customer->cylinderTransactions()
+            ->with(['createdBy', 'completedBy', 'items.product.category'])
+            ->orderBy('created_at', 'desc');
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        $transactions = $query->paginate(20)->withQueryString();
+
+        $all = $customer->cylinderTransactions();
+
+        $stats = [
+            'total_transactions' => $all->clone()->count(),
+            'active_transactions' => $all->clone()->where('status', 'active')->count(),
+            'total_amount_paid' => $all->clone()->where('payment_status', 'paid')->sum('amount'),
+            'total_amount_pending' => $all->clone()
+                ->where('payment_status', 'pending')
+                ->where('status', '!=', 'cancelled')
+                ->sum('amount'),
+        ];
+
+        return view('admin.cylinders.customer-history', compact('customer', 'transactions', 'stats'));
+    }
+
+    public function customerHistoryExport(Request $request, Customer $customer)
+    {
+        $transactions = $customer->cylinderTransactions()
+            ->with(['items.product'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return $this->streamTransactionsCsv(
+            $transactions,
+            'cylinder_history_' . $customer->id
+        );
+    }
+
+    /**
+     * CSV of whatever a list screen is currently showing.
+     *
+     * One implementation behind four route names: the views link to a
+     * per-screen export, but the only thing that differs is the filter, which
+     * the caller supplies.
+     */
+    public function exportList(Request $request, string $list)
+    {
+        $scopes = [
+            'paid-drop-offs' => fn ($q) => $q->active()->dropOffs()->paid(),
+            'unpaid-drop-offs' => fn ($q) => $q->active()->dropOffs()->pending(),
+            'pending-payments' => fn ($q) => $q->pending()->where('status', '!=', 'cancelled'),
+            'advance-collections' => fn ($q) => $q->active()->advanceCollections(),
+        ];
+
+        abort_unless(isset($scopes[$list]), 404);
+
+        $period = $request->get('period', 'daily');
+        [$start, $end] = $this->resolveDateRange($request, $period);
+
+        $query = $scopes[$list](CylinderTransaction::with(['customer', 'items.product']))
+            ->orderBy('created_at', 'desc');
+
+        $transactions = $this->applyDateRange($query, $start, $end)->get();
+
+        return $this->streamTransactionsCsv($transactions, str_replace('-', '_', $list));
+    }
+
+    /**
+     * Stream transactions as CSV rather than building the whole file in memory,
+     * so a long history cannot exhaust it.
+     */
+    private function streamTransactionsCsv($transactions, string $filenamePrefix)
+    {
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . $filenamePrefix . '_' . now()->format('Y-m-d') . '.csv"',
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        $columns = [
+            'Reference', 'Order Number', 'Date', 'Customer', 'Phone', 'Type',
+            'Items', 'Quantity', 'Amount', 'Deposit', 'Total',
+            'Payment Status', 'Status', 'Collected/Returned',
+        ];
+
+        $callback = function () use ($transactions, $columns) {
+            $file = fopen('php://output', 'w');
+            fputcsv($file, $columns);
+
+            foreach ($transactions as $t) {
+                fputcsv($file, [
+                    $t->reference_number,
+                    $t->order_number,
+                    optional($t->drop_off_date)->format('Y-m-d H:i'),
+                    $t->customer_name,
+                    $t->customer_phone,
+                    $t->transaction_type === 'drop_off' ? 'Drop-off' : 'Advance collection',
+                    $t->items->map(fn ($i) => optional($i->product)->name . ' x' . $i->quantity)->implode('; '),
+                    $t->items->sum('quantity'),
+                    number_format((float) $t->amount, 2, '.', ''),
+                    number_format((float) $t->deposit_amount, 2, '.', ''),
+                    number_format((float) $t->getTotalAmount(), 2, '.', ''),
+                    $t->payment_status,
+                    $t->status,
+                    optional($t->collection_date ?? $t->return_date)->format('Y-m-d H:i'),
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Reuse the customer already on file for this number, or create one.
+     *
+     * Previously this called create() unconditionally. `customers.phone` is
+     * uniquely indexed, so any customer already known to the system - anyone
+     * who has ever bought on credit at the POS, for instance - made the whole
+     * transaction fail with a raw SQL integrity-constraint error.
+     *
+     * Matching is done across every spelling of the number, because the column
+     * is free text and the same person may be stored as 0712..., 254712... or
+     * +254712....
+     */
+    private function findOrCreateCustomer(?string $name, ?string $phone): Customer
+    {
+        $existing = Customer::whereIn('phone', PhoneNumber::variants($phone))->first();
+
+        if ($existing !== null) {
+            // A customer who was inactive is being transacted with again.
+            if ($existing->status !== 'active') {
+                $existing->update(['status' => 'active']);
+            }
+
+            return $existing;
+        }
+
+        return Customer::create([
+            'name' => $name,
+            'phone' => $phone,
+            'status' => 'active',
+        ]);
+    }
+
     public function searchCustomers(Request $request)
     {
         $search = $request->get('q', '');
         
-        $customers = Customer::where('status', 'active')
+        $customers = Customer::selectable()
             ->where(function($query) use ($search) {
                 $query->where('name', 'like', "%{$search}%")
                       ->orWhere('phone', 'like', "%{$search}%");

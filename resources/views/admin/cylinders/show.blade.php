@@ -307,7 +307,16 @@
                             <div class="space-y-3">
                                 <!-- Complete Transaction -->
                                 <form method="POST" action="{{ route($completeRoute, $cylinder) }}"
-                                      onsubmit="return confirm('Mark this transaction as completed?\n\n{{ $cylinder->isPending() ? '⚠️ Payment is still pending. The transaction will be completed but payment status will remain unpaid.' : 'The customer has collected their cylinder.' }}')">
+                                      data-confirm
+                                      data-confirm-title="Mark this transaction as completed?"
+                                      data-confirm-message="{{ $cylinder->isDropOff() ? 'The customer is collecting their refilled cylinders.' : 'The empty cylinders have been returned and the deposit will be refunded.' }}"
+                                      @if($cylinder->isPending())
+                                          data-confirm-amount="This also records payment of KSh {{ number_format($cylinder->getTotalAmount(), 2) }} as received."
+                                          data-confirm-action="Complete &amp; mark paid"
+                                      @else
+                                          data-confirm-action="Complete"
+                                      @endif
+                                      data-confirm-variant="success">
                                     @csrf
                                     <button type="submit"
                                             class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">
@@ -321,7 +330,11 @@
                                 <!-- Cancel Transaction (Admin only) -->
                                 @if(!$isPosContext)
                                     <form method="POST" action="{{ route($cancelRoute, $cylinder) }}" 
-                                          onsubmit="return confirm('Are you sure you want to cancel this transaction? This action cannot be undone.')">
+                                          data-confirm
+                                          data-confirm-title="Cancel this transaction?"
+                                          data-confirm-message="Ref {{ $cylinder->reference_number }} for {{ $cylinder->customer_name }}. Any reserved stock is released and this cannot be undone."
+                                          data-confirm-action="Cancel transaction"
+                                          data-confirm-variant="danger">
                                         @csrf
                                         <button type="submit" 
                                                 class="w-full inline-flex justify-center items-center px-4 py-2 border border-red-300 rounded-md shadow-sm text-sm font-medium text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">

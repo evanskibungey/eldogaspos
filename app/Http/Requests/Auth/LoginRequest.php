@@ -49,6 +49,19 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        // Deactivating a user only ever blocked the mobile API, which checks
+        // this in API\AuthController::login. The web POS ignored it entirely,
+        // so a suspended cashier could still take sales at the till.
+        if (Auth::user()->status !== 'active') {
+            Auth::guard('web')->logout();
+
+            RateLimiter::hit($this->throttleKey());
+
+            throw ValidationException::withMessages([
+                'email' => 'Your account is not active. Please contact an administrator.',
+            ]);
+        }
+
         RateLimiter::clear($this->throttleKey());
     }
 

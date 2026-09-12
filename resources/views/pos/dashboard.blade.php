@@ -542,9 +542,18 @@
         window.authUserId = {{ auth()->id() }};
     </script>
     
-    <!-- Include Alpine.js POS System -->
-    <script src="{{ asset('js/pos-system.js') }}"></script>
-    
+    {{--
+        public/js/pos-system.js is deliberately NOT loaded.
+
+        It declares enhancedPosSystem() at global scope, but this file declares
+        it again further down, so the inline version always overwrote it before
+        Alpine evaluated x-data. The file was 614 lines downloaded on every POS
+        load and never executed - and its stale copy still called
+        /api/v1/customers and /api/v1/products/{id}/stock, neither of which
+        exists. Editing it looked like it should work, which is worse than it
+        simply being absent.
+    --}}
+
     <div x-data="enhancedPosSystem()" x-cloak class="flex h-screen bg-gray-50">
         <!-- Main Content Area -->
         <div class="flex-1 flex flex-col overflow-x-hidden">
@@ -1107,7 +1116,7 @@
                         <!-- Payment Method Selection -->
                         <div class="mb-4">
                             <div class="flex space-x-2">
-                                <button @click="paymentMethod = 'cash'"
+                                <button @click="handlePaymentMethodChange('cash')"
                                     class="flex-1 py-2 px-3 rounded-md text-sm border-2 transition-colors flex items-center justify-center"
                                     :class="paymentMethod === 'cash' ? 'border-orange-500 text-orange-600 bg-orange-50' :
                                         'border-gray-300 text-gray-700 bg-white hover:border-gray-400'">
@@ -1117,7 +1126,7 @@
                                     </svg>
                                     Cash
                                 </button>
-                                <button @click="paymentMethod = 'credit'"
+                                <button @click="handlePaymentMethodChange('credit')"
                                     class="flex-1 py-2 px-3 rounded-md text-sm border-2 transition-colors flex items-center justify-center"
                                     :class="paymentMethod === 'credit' ? 'border-orange-500 text-orange-600 bg-orange-50' :
                                         'border-gray-300 text-gray-700 bg-white hover:border-gray-400'">
@@ -1130,22 +1139,48 @@
                             </div>
                         </div>
 
-                        <!-- Customer Details (for credit) -->
-                        <div x-show="paymentMethod === 'credit'" x-transition class="mb-4">
+                        {{--
+                            Customer details, for cash as well as credit.
+
+                            Credit must name a customer - somebody has to owe the
+                            balance. Cash may, and the Walk-in option keeps a queue
+                            moving when they would rather not. Naming a cash
+                            customer is also what earns them an SMS receipt: the
+                            walk-in placeholder's number is not sendable.
+                        --}}
+                        <div x-transition class="mb-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-semibold text-gray-700">Customer</span>
+                                <span class="text-xs"
+                                      :class="paymentMethod === 'credit' ? 'text-orange-600 font-medium' : 'text-gray-400'"
+                                      x-text="paymentMethod === 'credit' ? 'Required' : 'Optional'"></span>
+                            </div>
+
                             <!-- Customer Selection Mode Toggle -->
                             <div class="mb-3">
                                 <div class="flex space-x-1 bg-gray-100 rounded-md p-1">
-                                    <button @click="customerMode = 'existing'; handleCustomerModeChange('existing')" 
+                                    <button x-show="paymentMethod === 'cash'"
+                                        @click="customerMode = 'none'; handleCustomerModeChange('none')"
+                                        class="flex-1 py-1.5 px-3 rounded text-xs font-medium transition-colors"
+                                        :class="customerMode === 'none' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'">
+                                        Walk-in
+                                    </button>
+                                    <button @click="customerMode = 'existing'; handleCustomerModeChange('existing')"
                                         class="flex-1 py-1.5 px-3 rounded text-xs font-medium transition-colors"
                                         :class="customerMode === 'existing' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'">
-                                        Select Customer
+                                        Select
                                     </button>
-                                    <button @click="customerMode = 'new'; handleCustomerModeChange('new')" 
+                                    <button @click="customerMode = 'new'; handleCustomerModeChange('new')"
                                         class="flex-1 py-1.5 px-3 rounded text-xs font-medium transition-colors"
                                         :class="customerMode === 'new' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'">
                                         Add New
                                     </button>
                                 </div>
+                            </div>
+
+                            <div x-show="customerMode === 'none'" class="px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-xs text-gray-500">
+                                No customer recorded. The sale is filed against the shared
+                                walk-in record and no SMS receipt is sent.
                             </div>
 
                             <!-- Existing Customer Selection -->
@@ -1311,7 +1346,10 @@
                             Receipt
                         </h2>
                         <div class="flex items-center">
-                        <span class="text-sm bg-white text-orange-600 px-2 py-1 rounded-full font-medium">#<span x-text="receiptNumber"></span></span>
+                        <span x-show="orderNumber !== null"
+                              class="text-sm bg-white text-orange-600 px-2 py-1 rounded-full font-bold">Order #<span x-text="orderNumber"></span></span>
+                        <span x-show="orderNumber === null"
+                              class="text-sm bg-white text-orange-600 px-2 py-1 rounded-full font-medium">#<span x-text="receiptNumber"></span></span>
                         @if(config('offline.enabled'))
                             <span x-show="!isOnline" class="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">Offline</span>
                                 @endif
@@ -1327,9 +1365,13 @@
                     </div>
 
                     <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div class="bg-orange-50 border border-orange-200 p-3 rounded-lg" x-show="orderNumber !== null">
+                            <p class="text-xs text-orange-700 mb-1">Order No.</p>
+                            <p class="font-bold text-2xl text-orange-700 leading-none" x-text="orderNumber"></p>
+                        </div>
                         <div class="bg-gray-50 p-3 rounded-lg">
-                            <p class="text-xs text-gray-500 mb-1">Receipt #</p>
-                            <p class="font-medium text-gray-800" x-text="receiptNumber"></p>
+                            <p class="text-xs text-gray-500 mb-1">Receipt Ref.</p>
+                            <p class="font-medium text-gray-800 text-sm" x-text="receiptNumber"></p>
                         </div>
                         <div class="bg-gray-50 p-3 rounded-lg">
                             <p class="text-xs text-gray-500 mb-1">Date</p>
@@ -1383,7 +1425,7 @@
                         </div>
                     </div>
 
-                    <template x-if="paymentMethod === 'credit'">
+                    <template x-if="customerMode !== 'none'">
                         <div class="bg-orange-50 p-3 rounded-lg border border-orange-100 mb-4">
                             <h5 class="font-medium text-orange-800 mb-2 flex items-center">
                                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1405,7 +1447,7 @@
                     </template>
 
                     <div class="text-center text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-                        <p class="font-semibold text-gray-700">Thank you for your business!</p>
+                        <p class="font-semibold text-gray-700">{{ setting('receipt_footer', 'ItishaTunaDeliver, Asante.') }}</p>
                         <p class="mt-1">Keep this receipt for any returns or exchanges.</p>
                         @if(config('offline.enabled'))
                         <p x-show="!isOnline" class="mt-2 text-orange-600 font-medium">Transaction processed offline</p>
@@ -1444,6 +1486,10 @@
                 <div class="separator-line">****************************</div>
                 
                 <!-- Receipt details -->
+                <div class="transaction-info" x-show="orderNumber !== null">
+                    <div class="transaction-label">ORDER NO:</div>
+                    <div class="transaction-value" x-text="orderNumber"></div>
+                </div>
                 <div class="transaction-info">
                     <div class="transaction-label">RECEIPT #:</div>
                     <div class="transaction-value" x-text="receiptNumber"></div>
@@ -1483,6 +1529,8 @@
                         <tr>
                             <td class="item-name">
                                 <div x-text="item.name"></div>
+                                <div x-show="item.order_number !== null && item.order_number !== undefined"
+                                     class="serial-number" x-text="'ORDER NO: ' + item.order_number"></div>
                                 <div x-show="item.serial_number" class="serial-number" x-text="'S/N:' + item.serial_number"></div>
                             </td>
                             <td class="item-qty" x-text="item.quantity"></td>
@@ -1507,8 +1555,8 @@
                     <div class="totals-value" x-text="'KSH ' + total.toFixed(0)"></div>
                 </div>
                 
-                <!-- Customer section for credit payments -->
-                <template x-if="paymentMethod === 'credit'">
+                {{-- Shown whenever a customer was recorded, cash or credit. --}}
+                <template x-if="customerMode !== 'none'">
                     <div class="customer-section">
                         <div class="separator-line">----------------------------</div>
                         <div class="customer-section-title">CUSTOMER DETAILS</div>
@@ -1525,7 +1573,7 @@
                 
                 <!-- Footer -->
                 <div class="receipt-footer">
-                    <div class="thank-you-msg">Thank you for your business!</div>
+                    <div class="thank-you-msg">{{ setting('receipt_footer', 'ItishaTunaDeliver, Asante.') }}</div>
                     <div>Keep receipt for exchanges</div>
                     <div class="store-name">*Eldogas*</div>
                     <div x-text="new Date().toLocaleDateString('en-GB')"></div>
@@ -1593,7 +1641,7 @@
                     currentCategory: null,
                     showCategoryDrawer: false,
                     paymentMethod: 'cash',
-                    customerMode: 'existing', // 'existing' or 'new'
+                    customerMode: 'none', // 'none' (walk-in), 'existing' or 'new'
                     customerDetails: {
                         customer_id: null,
                         name: '',
@@ -1610,6 +1658,12 @@
                     showReceipt: false,
                     showError: false,
                     receiptNumber: '',
+                    // Stock-derived order number returned by the server. It is
+                    // the sellable stock level of the cylinder line immediately
+                    // before this sale deducted it, so it counts down as stock
+                    // does. Not unique - receiptNumber remains the identifier.
+                    orderNumber: null,
+                    orderLines: [],
                     errorMessage: '',
                     isLoading: false,
                     isProcessing: false,
@@ -1673,14 +1727,20 @@
                             }
                         }
 
-                        // Only require customer details for credit payment
-                        if (this.paymentMethod === 'credit') {
-                            if (this.customerMode === 'existing') {
-                                return this.selectedCustomer !== null;
-                            } else {
-                                return this.customerDetails.name.trim() !== '' &&
-                                    this.customerDetails.phone.trim() !== '';
-                            }
+                        // Credit always needs a customer; cash only needs one if
+                        // the cashier chose to record one, in which case it has
+                        // to be complete enough to identify them.
+                        if (this.paymentMethod === 'credit' && this.customerMode === 'none') {
+                            return false;
+                        }
+
+                        if (this.customerMode === 'existing') {
+                            return this.selectedCustomer !== null;
+                        }
+
+                        if (this.customerMode === 'new') {
+                            return this.customerDetails.name.trim() !== '' &&
+                                this.customerDetails.phone.trim() !== '';
                         }
 
                         return true;
@@ -1850,25 +1910,46 @@
                     },
 
                     // Customer Management Methods
+                    //
+                    // Searching happens on the server. This used to fetch
+                    // a versioned customers path that does not exist, since the
+                    // API is not versioned - so the list was always empty and a
+                    // cashier could never pick an existing customer for a
+                    // credit sale. The API routes would not have worked either:
+                    // they sit behind auth:sanctum, and this page is
+                    // session-authenticated. This web route is the one that
+                    // shares the session.
+                    async fetchCustomers(query = '') {
+                        const url = '{{ route('pos.customers.search') }}?q=' + encodeURIComponent(query);
+
+                        const response = await fetch(url, {
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
+                            }
+                        });
+
+                        if (!response.ok) {
+                            throw new Error('Failed to load customers');
+                        }
+
+                        // balance arrives as a decimal string; the template
+                        // calls .toFixed() on it, which throws on a string.
+                        return (await response.json()).map(c => ({
+                            ...c,
+                            balance: Number(c.balance) || 0
+                        }));
+                    },
+
                     async loadCustomers() {
                         if (this.customersLoaded) return;
-                        
+
                         this.loadingCustomers = true;
                         try {
-                            const response = await fetch('/api/v1/customers', {
-                                headers: {
-                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
-                                }
-                            });
-                            
-                            if (response.ok) {
-                                const data = await response.json();
-                                this.customers = data.customers || [];
-                                this.filteredCustomers = this.customers;
-                                this.customersLoaded = true;
-                            } else {
-                                throw new Error('Failed to load customers');
-                            }
+                            this.customers = await this.fetchCustomers('');
+                            this.filteredCustomers = this.customers;
+                            this.customersLoaded = true;
                         } catch (error) {
                             console.error('Error loading customers:', error);
                             this.showNotification('Failed to load customers', 'error');
@@ -1878,16 +1959,27 @@
                     },
 
                     searchCustomers() {
-                        if (!this.customerSearch.trim()) {
-                            this.filteredCustomers = this.customers;
-                            return;
-                        }
-                        
-                        const search = this.customerSearch.toLowerCase();
-                        this.filteredCustomers = this.customers.filter(customer => 
-                            customer.name.toLowerCase().includes(search) ||
-                            customer.phone.toLowerCase().includes(search)
-                        );
+                        // Debounced: this fires on every keystroke, and the
+                        // search runs against the whole table rather than a
+                        // preloaded page of it.
+                        clearTimeout(this._customerSearchTimer);
+
+                        this._customerSearchTimer = setTimeout(async () => {
+                            const query = this.customerSearch.trim();
+
+                            try {
+                                this.loadingCustomers = true;
+                                this.filteredCustomers = await this.fetchCustomers(query);
+
+                                if (query === '') {
+                                    this.customers = this.filteredCustomers;
+                                }
+                            } catch (error) {
+                                console.error('Customer search failed:', error);
+                            } finally {
+                                this.loadingCustomers = false;
+                            }
+                        }, 250);
                     },
 
                     selectCustomer(customer) {
@@ -1963,21 +2055,24 @@
                         this.isProcessing = true;
 
                         try {
-                            // Prepare sale data
+                            // Prepare sale data.
+                            //
+                            // Driven by the customer mode rather than the payment
+                            // method: a cash sale may name a customer too, and
+                            // 'none' means walk-in, so nothing is sent.
                             let customerDetails = null;
-                            if (this.paymentMethod === 'credit') {
-                                if (this.customerMode === 'existing' && this.selectedCustomer) {
-                                    customerDetails = {
-                                        customer_id: this.selectedCustomer.id,
-                                        name: this.selectedCustomer.name,
-                                        phone: this.selectedCustomer.phone
-                                    };
-                                } else {
-                                    customerDetails = {
-                                        name: this.customerDetails.name,
-                                        phone: this.customerDetails.phone
-                                    };
-                                }
+
+                            if (this.customerMode === 'existing' && this.selectedCustomer) {
+                                customerDetails = {
+                                    customer_id: this.selectedCustomer.id,
+                                    name: this.selectedCustomer.name,
+                                    phone: this.selectedCustomer.phone
+                                };
+                            } else if (this.customerMode === 'new') {
+                                customerDetails = {
+                                    name: this.customerDetails.name,
+                                    phone: this.customerDetails.phone
+                                };
                             }
 
                             const saleData = {
@@ -2016,11 +2111,16 @@
 
                             if (result.success) {
                                 this.receiptNumber = result.receipt_number;
-                                
+                                this.orderNumber = result.order_number ?? null;
+                                // Per-line stock numbers, authoritative prices and
+                                // resulting stock levels, all as computed by the server.
+                                this.orderLines = result.receipt_data?.items ?? [];
+                                this.applyServerLineData(this.orderLines);
+
                                 // If we created a new customer, add them to our customer list
-                                if (this.paymentMethod === 'credit' && this.customerMode === 'new' && result.customer) {
+                                if (this.customerMode === 'new' && result.customer) {
                                     await this.addNewCustomerToList(result.customer);
-                                } else if (this.paymentMethod === 'credit' && this.customerMode === 'existing' && this.selectedCustomer) {
+                                } else if (this.customerMode === 'existing' && this.selectedCustomer) {
                                     // Update balance for existing customer after credit sale
                                     this.selectedCustomer.balance = result.customer?.balance || this.selectedCustomer.balance;
                                     // Update in customers list too
@@ -2031,10 +2131,11 @@
                                 }
                                 
                                 this.showReceipt = true;
-                                
-                                // Update local stock immediately
-                                this.updateLocalProductStock();
-                                
+
+                                // Stock was already synced from the server response by
+                                // applyServerLineData() above. Do not decrement again
+                                // here - that double-counted every sale on screen.
+
                                 if (this.offlineModeEnabled) {
                                     // Update sync status
                                     await this.updateSyncStatus();
@@ -2073,14 +2174,30 @@
                             body: JSON.stringify(saleData)
                         });
 
+                        // Read the body first. The server explains refusals in
+                        // JSON - "6kg Gas Cylinder is out of stock" - and
+                        // throwing on the status alone would discard that and
+                        // show the cashier a bare status code instead.
+                        let result = null;
+                        try {
+                            result = await response.json();
+                        } catch (e) {
+                            result = null;
+                        }
+
                         if (!response.ok) {
+                            if (result && result.message) {
+                                const err = new Error(result.message);
+                                err.errorType = result.error_type || null;
+                                err.shortages = result.shortages || [];
+                                throw err;
+                            }
+
                             throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
                         }
 
-                        const result = await response.json();
-                        
-                        if (!result.success) {
-                            throw new Error(result.message || 'Server rejected the sale');
+                        if (!result || !result.success) {
+                            throw new Error((result && result.message) || 'Server rejected the sale');
                         }
 
                         return {
@@ -2158,23 +2275,58 @@
                         }
                     },
 
-                    // Update local product stock after sale
+                    // Copy the server's authoritative per-line figures onto the
+                    // cart and the product grid.
+                    //
+                    // The stock levels come back from the same locked read that
+                    // performed the deduction, so the terminal reflects
+                    // reservations and any concurrent sale rather than a local
+                    // guess. Falls back to local arithmetic if the server did
+                    // not send line data.
+                    applyServerLineData(lines) {
+                        if (!Array.isArray(lines) || lines.length === 0) {
+                            this.updateLocalProductStock();
+                            return;
+                        }
+
+                        for (const line of lines) {
+                            const cartItem = this.cart.find(item => item.id === line.id);
+                            if (cartItem) {
+                                cartItem.order_number = line.order_number ?? null;
+                                cartItem.price = line.price ?? cartItem.price;
+                            }
+
+                            const product = this.allProducts.find(p => p.id === line.id);
+                            if (product && typeof line.stock_after === 'number') {
+                                product.stock = line.stock_after;
+                                product.out_of_stock = line.stock_after <= 0;
+                            }
+                        }
+                    },
+
+                    // Fallback: decrement locally when the server sent no line data.
                     updateLocalProductStock() {
                         for (const cartItem of this.cart) {
                             const product = this.allProducts.find(p => p.id === cartItem.id);
                             if (product) {
                                 product.stock = Math.max(0, product.stock - cartItem.quantity);
+                                product.out_of_stock = product.stock <= 0;
                             }
                         }
                     },
 
                     // Enhanced add to cart with offline stock checking
                     addToCart(product) {
-                        // Check if product has stock
+                        // `stock` carries sellable stock: physical units minus any
+                        // reserved for cylinder collections awaiting pickup. The
+                        // server re-checks this under a row lock at sale time, so
+                        // this guard is for feedback, not enforcement.
                         if (product.stock <= 0) {
                             this.showError = true;
-                            this.errorMessage = 'This product is out of stock.';
-                            setTimeout(() => this.showError = false, 3000);
+                            this.errorMessage = product.reserved_stock > 0
+                                ? `${product.name} is out of stock - all remaining units are reserved for cylinder collections.`
+                                : `${product.name} is out of stock.`;
+                            setTimeout(() => this.showError = false, 4000);
                             return;
                         }
 
@@ -2230,7 +2382,7 @@
                     resetSaleState() {
                         this.cart = [];
                         this.paymentMethod = 'cash';
-                        this.customerMode = 'existing';
+                        this.customerMode = 'none';
                         this.customerDetails = { customer_id: null, name: '', phone: '' };
                         this.clearCustomerSelection();
                         this.recentlyAddedCustomerId = null; // Clear new customer indicator
@@ -2297,6 +2449,27 @@
                         } else if (newMode === 'new') {
                             // Clear customer selection when switching to new customer mode
                             this.clearCustomerSelection();
+                        } else if (newMode === 'none') {
+                            // Walk-in: discard anything half-entered so it cannot
+                            // be sent with the sale.
+                            this.clearCustomerSelection();
+                            this.customerDetails.name = '';
+                            this.customerDetails.phone = '';
+                        }
+                    },
+
+                    /**
+                     * Credit has to be owed by somebody, so the walk-in option is
+                     * not offered there. Switching to credit while on walk-in
+                     * moves the cashier to the customer picker rather than
+                     * leaving a hidden, unselectable mode active.
+                     */
+                    handlePaymentMethodChange(method) {
+                        this.paymentMethod = method;
+
+                        if (method === 'credit' && this.customerMode === 'none') {
+                            this.customerMode = 'existing';
+                            this.handleCustomerModeChange('existing');
                         }
                     }
                 }
