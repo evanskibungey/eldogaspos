@@ -80,6 +80,40 @@
                                 <label class="block text-sm font-medium text-gray-500">Member Since</label>
                                 <p class="mt-1 text-sm text-gray-900">{{ $customer->created_at->format('M d, Y') }}</p>
                             </div>
+
+                            {{--
+                                Marketing preference. Receipts and collection
+                                notices are unaffected - those are about a
+                                purchase this customer made, not advertising.
+                            --}}
+                            <div>
+                                <label class="block text-sm font-medium text-gray-500">Marketing SMS</label>
+                                <div class="mt-1 flex items-center gap-3">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $customer->sms_opt_out ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800' }}">
+                                        {{ $customer->sms_opt_out ? 'Opted out' : 'Subscribed' }}
+                                    </span>
+
+                                    <form method="POST" action="{{ route('admin.sms.opt-out', $customer) }}"
+                                          data-confirm
+                                          data-confirm-title="{{ $customer->sms_opt_out ? 'Resume marketing SMS?' : 'Stop marketing SMS?' }}"
+                                          data-confirm-message="{{ $customer->sms_opt_out
+                                                ? $customer->name . ' will be included in campaigns again. Only do this if they have asked to receive them.'
+                                                : $customer->name . ' will be left out of every campaign from now on. Receipts and collection notices are not affected.' }}"
+                                          data-confirm-action="{{ $customer->sms_opt_out ? 'Resume' : 'Opt out' }}"
+                                          data-confirm-variant="{{ $customer->sms_opt_out ? 'warning' : 'danger' }}">
+                                        @csrf
+                                        <button type="submit" class="text-xs font-semibold text-orange-600 hover:underline">
+                                            {{ $customer->sms_opt_out ? 'Resume' : 'Opt out' }}
+                                        </button>
+                                    </form>
+                                </div>
+                                @if($customer->sms_opt_out && $customer->sms_opt_out_at)
+                                    <p class="mt-1 text-xs text-gray-400">
+                                        Since {{ $customer->sms_opt_out_at->format('d M Y') }}
+                                        ({{ $customer->sms_opt_out_source === 'sms' ? 'replied STOP' : 'recorded by staff' }})
+                                    </p>
+                                @endif
+                            </div>
                         </div>
                     </div>
 

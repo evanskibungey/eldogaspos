@@ -18,6 +18,7 @@ class Sale extends Model
         'user_id',
         'customer_id',
         'receipt_number',
+        'idempotency_key',
         'order_number',
         'total_amount',
         'payment_method',

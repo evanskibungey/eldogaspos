@@ -51,6 +51,14 @@
             height: 100%;
             display: flex;
             flex-direction: column;
+            /*
+                A tile is a button, not text. Without this an impatient second
+                tap highlights the product name instead of doing nothing, which
+                is what it looked like when the old double-click "did nothing".
+            */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            user-select: none;
         }
         
         .product-card:hover {
@@ -260,6 +268,203 @@
             height: 1.25rem;
             stroke-width: 2.5;
         }
+
+        /* Quantity stepper - replaces the add-to-cart button on each tile. */
+        .qty-stepper {
+            display: flex;
+            align-items: center;
+            gap: 0.125rem;
+            background: #f3f4f6;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 0.125rem;
+        }
+
+        .qty-btn {
+            width: 1.75rem;
+            height: 1.75rem;
+            border: none;
+            border-radius: 0.375rem;
+            background: #fff;
+            color: #374151;
+            font-size: 1rem;
+            font-weight: 700;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color .12s, color .12s;
+        }
+
+        .qty-btn:hover:not(:disabled) { background: #f97316; color: #fff; }
+        .qty-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+        /*
+            The tile's two explicit actions: Pick-up (book out to a rider) and
+            Print (sell and print the receipt). Side by side and equal width -
+            neither is the primary action, and a thumb should not have to aim.
+        */
+        .tile-actions {
+            display: flex;
+            gap: 0.4rem;
+            margin-top: 0.4rem;
+        }
+        .tile-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3rem;
+            flex: 1 1 0;
+            min-width: 0;
+            padding: 0.4rem 0.35rem;
+            border: 1px dashed #c4b5fd;
+            border-radius: 0.5rem;
+            background: #f5f3ff;
+            color: #6d28d9;
+            font-size: .75rem;
+            font-weight: 700;
+            white-space: nowrap;
+            cursor: pointer;
+            transition: background-color .12s, color .12s, border-color .12s;
+        }
+        .tile-btn svg { width: .9rem; height: .9rem; flex-shrink: 0; }
+        .tile-btn:hover:not(:disabled) { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+        .tile-btn:disabled { opacity: .35; cursor: not-allowed; }
+
+        /*
+            Rider picker. Scoped CSS rather than utility classes, like the
+            confirm dialog: it must render correctly on a build that has not
+            been regenerated since these classes were added.
+        */
+        .rider-modal__head {
+            display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
+            padding: 1rem 1.25rem; border-bottom: 1px solid #e5e7eb;
+        }
+        .rider-modal__close {
+            border: none; background: #f3f4f6; color: #6b7280; width: 2rem; height: 2rem;
+            border-radius: 9999px; font-size: 1.25rem; line-height: 1; cursor: pointer;
+        }
+        .rider-modal__close:hover { background: #e5e7eb; color: #111827; }
+        .rider-modal__empty { padding: 2rem 1.25rem; text-align: center; color: #6b7280; font-size: .875rem; }
+        .rider-list { max-height: 60vh; overflow-y: auto; padding: .5rem; }
+        .rider-item { margin-bottom: .35rem; }
+
+        .rider-row {
+            display: flex; align-items: stretch; width: 100%;
+            border: 1px solid #e5e7eb; border-radius: .75rem; background: #fff;
+            overflow: hidden;
+            transition: border-color .12s, background-color .12s;
+        }
+        .rider-row:hover { border-color: #7c3aed; }
+        .rider-row.is-busy { border-color: #7c3aed; background: #faf5ff; }
+
+        /* The row itself assigns; the icon beside it opens the number field. */
+        .rider-row__main {
+            display: flex; align-items: center; gap: .75rem; flex: 1; min-width: 0;
+            padding: .65rem .75rem; border: none; background: transparent;
+            text-align: left; cursor: pointer; font: inherit;
+            transition: background-color .12s;
+        }
+        .rider-row__main:hover:not(:disabled) { background: #faf5ff; }
+        .rider-row__main:disabled { cursor: wait; opacity: .7; }
+
+        .rider-row__num {
+            flex-shrink: 0; width: 3rem; border: none; border-left: 1px solid #e5e7eb;
+            background: #fafafa; color: #9ca3af; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: background-color .12s, color .12s;
+        }
+        .rider-row__num svg { width: 1.1rem; height: 1.1rem; }
+        .rider-row__num:hover:not(:disabled) { background: #ede9fe; color: #6d28d9; }
+        .rider-row__num.is-active { background: #7c3aed; color: #fff; border-left-color: #7c3aed; }
+        .rider-row__num:disabled { opacity: .4; cursor: not-allowed; }
+
+        .rider-cust {
+            padding: .6rem .75rem .7rem;
+            border: 1px solid #ddd6fe; border-top: none;
+            border-radius: 0 0 .75rem .75rem; background: #faf5ff;
+            margin: -.35rem .5rem 0;
+        }
+        .rider-cust__row { display: flex; gap: .4rem; }
+        .rider-cust__input {
+            flex: 1; min-width: 0; padding: .45rem .6rem;
+            border: 1px solid #c4b5fd; border-radius: .5rem;
+            font-size: .85rem; background: #fff; color: #111827;
+        }
+        .rider-cust__input:focus { outline: none; border-color: #7c3aed; box-shadow: 0 0 0 2px rgba(124,58,237,.18); }
+        .rider-cust__send {
+            flex-shrink: 0; padding: .45rem .9rem; border: none; border-radius: .5rem;
+            background: #7c3aed; color: #fff; font-size: .8rem; font-weight: 700; cursor: pointer;
+        }
+        .rider-cust__send:hover:not(:disabled) { background: #6d28d9; }
+        .rider-cust__send:disabled { opacity: .6; cursor: wait; }
+        .rider-cust__hint { margin-top: .35rem; font-size: .7rem; color: #7c6f9a; }
+        .rider-cust__error { margin-top: .35rem; font-size: .72rem; font-weight: 600; color: #b91c1c; }
+        .rider-row__avatar {
+            flex-shrink: 0; width: 2.25rem; height: 2.25rem; border-radius: 9999px;
+            display: flex; align-items: center; justify-content: center;
+            background: #ede9fe; color: #6d28d9; font-weight: 800;
+        }
+        .rider-row.is-out .rider-row__avatar { background: #fef3c7; color: #b45309; }
+        .rider-row__body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+        .rider-row__name { font-weight: 700; color: #111827; font-size: .9rem; }
+        .rider-row__phone { color: #6b7280; font-size: .75rem; }
+        .rider-row__pill {
+            flex-shrink: 0; padding: .2rem .6rem; border-radius: 9999px;
+            font-size: .7rem; font-weight: 700; white-space: nowrap;
+        }
+        .rider-row__pill.free { background: #dcfce7; color: #15803d; }
+        .rider-row__pill.out { background: #fef3c7; color: #b45309; }
+        .rider-modal__foot {
+            display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+            padding: .75rem 1.25rem; border-top: 1px solid #e5e7eb;
+            background: #f9fafb; color: #6b7280; font-size: .75rem;
+        }
+        .rider-modal__foot a { color: #ea580c; font-weight: 700; white-space: nowrap; }
+        .rider-modal__foot a:hover { text-decoration: underline; }
+        .rider-modal__foot-icon {
+            display: inline-block; width: .8rem; height: .8rem;
+            vertical-align: -1px; color: #7c3aed;
+        }
+        .rider-modal__done { padding: 2rem 1.25rem; text-align: center; }
+        .rider-modal__tick {
+            width: 3.5rem; height: 3.5rem; margin: 0 auto 1rem; border-radius: 9999px;
+            background: #dcfce7; color: #15803d; font-size: 1.75rem; font-weight: 800;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .rider-modal__done h4 { font-size: 1.125rem; font-weight: 800; color: #111827; }
+        .rider-modal__done .ref { margin: .25rem 0 .5rem; font-family: ui-monospace, monospace; font-weight: 700; color: #6d28d9; }
+        .rider-modal__done p { color: #6b7280; font-size: .875rem; }
+        .rider-modal__done p.cust {
+            margin-top: .4rem; font-weight: 700; color: #6d28d9; font-size: .8rem;
+        }
+        .rider-modal__done button {
+            margin-top: 1.25rem; width: 100%; padding: .6rem 1rem; border: none; border-radius: .5rem;
+            background: #7c3aed; color: #fff; font-weight: 700; cursor: pointer;
+        }
+        .rider-modal__done button:hover { background: #6d28d9; }
+
+        .qty-value {
+            min-width: 1.5rem;
+            text-align: center;
+            font-size: .875rem;
+            font-weight: 700;
+            color: #111827;
+        }
+
+        /*
+            While a sale is in flight the tile is dimmed and stops taking
+            pointer events, so an impatient second tap cannot queue another
+            sale. The idempotency key is the real guarantee; this is the part
+            the cashier can see.
+        */
+        .product-card.is-selling {
+            opacity: .55;
+            pointer-events: none;
+            outline: 2px solid #f97316;
+            outline-offset: -2px;
+        }
         
         /* Cart Item Styles */
         .cart-item {
@@ -323,215 +528,6 @@
             animation: slideDown 0.3s ease-out forwards;
         }
 
-        /* Only apply these styles during printing */
-        @media print {
-            /* Hide everything except receipt content when printing */
-            body * {
-                visibility: hidden;
-            }
-            
-            /* Only show the printable receipt and its children */
-            .printable-receipt,
-            .printable-receipt * {
-                visibility: visible !important;
-            }
-            
-            /* Position the receipt properly */
-            .printable-receipt {
-                position: absolute !important;
-                left: 0 !important;
-                top: 0 !important;
-                width: 57mm !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                background-color: white !important;
-                display: block !important;
-            }
-            
-            /* Set exact paper size */
-            @page {
-                size: 70mm auto !important; /* Auto height allows proper length based on content */
-                margin: 0mm !important;
-            }
-            
-            /* Main container */
-            .receipt-container {
-                width: 72mm !important;
-                margin: 0mm auto !important;
-                padding: 2mm !important;
-                box-sizing: border-box !important;
-                font-family: 'Roboto', sans-serif !important;
-                color: black !important;
-                line-height: 1.1 !important; /* Tighter line spacing */
-            }
-
-            /* Company name styles */
-            .company-name {
-                text-align: center !important;
-                font-size: 12pt !important;
-                font-weight: bold !important;
-                margin: 0 0 1mm 0 !important;
-                text-transform: uppercase !important;
-            }
-            
-            /* Address and contact info */
-            .company-info {
-                text-align: center !important;
-                font-size: 8pt !important;
-                line-height: 1.1 !important;
-                margin: 0 0 1mm 0 !important;
-            }
-            
-            /* Separator line */
-            .separator-line {
-                text-align: center !important;
-                font-size: 8pt !important;
-                line-height: 1 !important;
-                margin: 1mm 0 !important;
-            }
-            
-            /* Transaction info */
-            .transaction-info {
-                display: flex !important;
-                justify-content: space-between !important;
-                font-size: 8pt !important;
-                line-height: 1.2 !important;
-                margin-bottom: 0.5mm !important;
-            }
-            
-            .transaction-label {
-                font-weight: bold !important;
-                text-align: left !important;
-            }
-            
-            .transaction-value {
-                text-align: right !important;
-            }
-            
-            /* Section title */
-            .section-title {
-                text-align: center !important;
-                font-size: 9pt !important;
-                font-weight: bold !important;
-                margin: 1mm 0 !important;
-            }
-            
-            /* Item table */
-            .items-table {
-                width: 100% !important;
-                font-size: 8pt !important;
-                margin: 1mm 0 !important;
-                border-collapse: collapse !important;
-                line-height: 1.1 !important;
-                table-layout: fixed !important; /* Fixed layout prevents column issues */
-            }
-            
-            .items-header {
-                font-weight: bold !important;
-                font-size: 8pt !important;
-                margin-bottom: 1mm !important;
-                border-bottom: 1px dashed #000 !important;
-            }
-            
-            .item-name {
-                width: 42% !important;
-                text-align: left !important;
-                font-weight: bold !important;
-                padding-bottom: 1mm !important;
-                white-space: normal !important; /* Allow wrapping */
-                word-break: break-word !important; /* Break long words */
-            }
-            
-            .item-qty {
-                width: 10% !important;
-                text-align: center !important;
-                padding-bottom: 1mm !important;
-            }
-            
-            .item-price {
-                width: 22% !important;
-                text-align: right !important;
-                padding-bottom: 1mm !important;
-            }
-            
-            .item-total {
-                width: 26% !important;
-                text-align: right !important;
-                padding-bottom: 1mm !important;
-            }
-            
-            .serial-number {
-                font-size: 7pt !important;
-                font-weight: normal !important;
-                font-style: italic !important;
-            }
-            
-            /* Totals section */
-            .totals-section {
-                display: flex !important;
-                justify-content: space-between !important;
-                font-size: 8pt !important;
-                line-height: 1.2 !important;
-                margin-bottom: 0.5mm !important;
-            }
-            
-            .totals-label {
-                text-align: left !important;
-            }
-            
-            .totals-value {
-                text-align: right !important;
-            }
-            
-            .grand-total {
-                font-weight: bold !important;
-                font-size: 10pt !important;
-                margin-top: 1mm !important;
-            }
-            
-            /* Customer section */
-            .customer-section {
-                margin-top: 2mm !important;
-            }
-            
-            .customer-section-title {
-                font-weight: bold !important;
-                text-align: center !important;
-                font-size: 9pt !important;
-                margin: 1mm 0 !important;
-            }
-            
-            .customer-info {
-                display: flex !important;
-                font-size: 8pt !important;
-                line-height: 1.2 !important;
-                margin-bottom: 0.5mm !important;
-            }
-            
-            .customer-label {
-                font-weight: bold !important;
-                min-width: 12mm !important;
-            }
-            
-            /* Footer */
-            .receipt-footer {
-                text-align: center !important;
-                font-size: 8pt !important;
-                margin-top: 3mm !important;
-                line-height: 1.1 !important;
-            }
-            
-            .thank-you-msg {
-                font-weight: bold !important;
-                margin-bottom: 1mm !important;
-            }
-            
-            .store-name {
-                font-size: 9pt !important;
-                font-weight: bold !important;
-                margin: 1mm 0 !important;
-            }
-        }
     </style>
 
     <!-- Set offline mode configuration and data -->
@@ -578,8 +574,7 @@
                                     clip-rule="evenodd" />
                             </svg>
                         </div>
-                        <span class="ml-2 font-bold text-xl text-gray-900">Eldo<span class="text-orange-500">Gas</span>
-                            <span class="text-gray-700">POS</span></span>
+                        <span class="ml-2 font-bold text-xl text-gray-900">Eldo<span class="text-orange-500">Gas</span></span>
                     </div>
 
                     <!-- Enhanced Search bar -->
@@ -642,6 +637,37 @@
                             @endif
                         </a>
                         
+                        <!-- Rider Cylinder Management Quick Access -->
+                        <a href="{{ route('pos.riders.index') }}" class="hidden md:flex items-center text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-100 transition-all">
+                            <svg class="w-4 h-4 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/>
+                            </svg>
+                            <span class="font-medium">Riders</span>
+                        </a>
+
+                        {{--
+                            Today's sales.
+
+                            Green rather than purple on purpose: the other two
+                            badges count stock on hand, this one counts money
+                            taken. Same colour would read as a third stock
+                            figure at a glance.
+
+                            The count is live - see todaySalesCount. A number
+                            rendered once at page load would be wrong by the
+                            second sale, because this screen never reloads.
+                        --}}
+                        <a href="{{ route('pos.sales.history') }}"
+                           class="hidden md:flex items-center text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-100 transition-all"
+                           :title="'Today: KSh ' + todaySalesAmountFormatted">
+                            <svg class="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <span class="font-medium">Sales</span>
+                            <span class="ml-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold rounded-full bg-green-500 text-white"
+                                  x-text="todaySalesCount"></span>
+                        </a>
+
                         <!-- Inventory Overview -->
                         <a href="{{ route('admin.products.index') }}" class="hidden md:flex items-center text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-100 transition-all">
                             <svg class="w-4 h-4 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -925,8 +951,8 @@
                         <template x-for="product in filteredProducts" :key="product.id">
                             <div :id="'product-' + product.id" 
                                  class="product-card" 
-                                 :class="product.stock <= 0 ? 'out-of-stock' : ''"
-                                 @click="product.stock > 0 && addToCart(product)">
+                                 :class="{ 'out-of-stock': product.stock <= 0, 'is-selling': sellingId === product.id }"
+                                 @click="sellOnClick(product)">
                                 
                                 @if(config('offline.enabled'))
                                 <!-- Offline Badge -->
@@ -979,12 +1005,50 @@
                                     <!-- Footer with Price and Add Button -->
                                     <div class="product-footer">
                                         <span class="product-price" x-text="'KSh ' + product.price.toFixed(0)"></span>
-                                        <button @click.stop="addToCart(product)" 
-                                                :disabled="product.stock <= 0"
-                                                class="add-to-cart-btn">
-                                            <svg class="add-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+
+                                        {{--
+                                            Quantity stepper. The .stop matters: without it a tap
+                                            on + would sell the product.
+                                        --}}
+                                        <div class="qty-stepper" @click.stop>
+                                            <button type="button" class="qty-btn"
+                                                    @click.stop="adjustQty(product, -1)"
+                                                    :disabled="qtyFor(product.id) <= 1 || product.stock <= 0"
+                                                    aria-label="Decrease quantity">&minus;</button>
+                                            <span class="qty-value" x-text="qtyFor(product.id)"></span>
+                                            <button type="button" class="qty-btn"
+                                                    @click.stop="adjustQty(product, 1)"
+                                                    :disabled="qtyFor(product.id) >= product.stock || product.stock <= 0"
+                                                    aria-label="Increase quantity">+</button>
+                                        </div>
+                                    </div>
+
+                                    {{--
+                                        The two explicit actions. .stop on the wrapper keeps every
+                                        tap in here off the tile, which would otherwise sell.
+
+                                        Print replaces what used to be a double-click on the tile.
+                                        A double-click selected the product name instead of firing
+                                        reliably, and an invisible gesture is a poor way to reach
+                                        the only action that puts ink on paper.
+                                    --}}
+                                    <div class="tile-actions" @click.stop>
+                                        <button type="button" class="tile-btn"
+                                                @click="openRiderPicker(product)"
+                                                :disabled="product.stock <= 0 || sellingId !== null">
+                                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/>
                                             </svg>
+                                            Pick-up
+                                        </button>
+
+                                        <button type="button" class="tile-btn"
+                                                @click="sellAndPrint(product)"
+                                                :disabled="product.stock <= 0 || sellingId !== null">
+                                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                                            </svg>
+                                            <span x-text="sellingId === product.id ? 'Printing…' : 'Print'"></span>
                                         </button>
                                     </div>
                                 </div>
@@ -993,591 +1057,142 @@
                     </div>
                 </div>
 
-                <!-- Redesigned Cart Section with Fixed Height -->
-                <div class="w-80 bg-white shadow-md border-l border-gray-200 cart-wrapper">
-                    <!-- Cart Header -->
-                    <div class="p-3 border-b flex items-center justify-between bg-gradient-to-r from-gray-800 to-gray-900 text-white">
-                        <div class="flex-1">
-                            <h2 class="text-lg font-bold flex items-center">
-                                <svg class="w-5 h-5 mr-2 text-orange-400" fill="none" stroke="currentColor"
-                                    viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                                </svg>
-                                Shopping Cart
-                            </h2>
-                            <div class="text-xs text-gray-300 mt-1 flex items-center">
-                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-                                </svg>
-                                <span>Total Inventory: </span>
-                                <span class="font-semibold ml-1" x-text="totalInventoryStock"></span>
-                                <span class="ml-1">units</span>
-                            </div>
-                        </div>
-                        <span x-show="cart.length > 0" 
-                            class="bg-gradient-to-r from-orange-500 to-orange-600 text-white text-xs px-2 py-1 rounded-full flex items-center">
-                            <span x-text="cart.length"></span>
-                            <span class="ml-1">items</span>
-                        </span>
-                    </div>
-
-                    <!-- Cart Totals Summary (visible always) -->
-                    <div class="p-3 bg-gray-50 border-b flex justify-between items-center text-sm">
-                        <div>
-                            <span class="text-gray-600">Total:</span>
-                            <span x-text="'KSh ' + total.toFixed(0)" class="font-bold text-orange-600 ml-1"></span>
-                        </div>
-                        <span x-show="cart.length > 0" class="text-gray-600">
-                            <span x-text="cart.reduce((sum, item) => sum + item.quantity, 0)"></span> units
-                        </span>
-                    </div>
-
-                    <!-- Cart Items Container - Scrollable -->
-                    <div class="cart-items-container p-3">
-                        <!-- Empty Cart State -->
-                        <template x-if="cart.length === 0">
-                            <div class="empty-cart-message flex flex-col items-center justify-center text-center">
-                                <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-3">
-                                    <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor"
-                                        viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                                    </svg>
-                                </div>
-                                <p class="text-gray-700 font-medium mb-1">Your cart is empty</p>
-                                <p class="text-gray-500 text-sm px-4">Add products to start a new sale</p>
-                            </div>
-                        </template>
-
-                        <!-- Cart Items List -->
-                        <template x-for="(item, index) in cart" :key="index">
-                            <div class="cart-item mb-3 p-3 bg-white border border-gray-200 rounded-lg shadow-sm relative">
-                                <!-- Remove Button - Absolute positioned -->
-                                <button @click="removeFromCart(index)"
-                                    class="absolute top-2 right-2 text-red-400 hover:text-red-600 h-6 w-6 flex items-center justify-center rounded-full hover:bg-red-50 transition-colors">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </button>
-                                
-                                <!-- Item Header -->
-                                <div class="pr-8 mb-2">
-                                    <h3 x-text="item.name" class="font-medium text-gray-900 hover:text-orange-600 cursor-pointer"></h3>
-                                    <div class="flex items-center mt-1 text-xs">
-                                        <span class="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700 mr-2" x-text="item.category_name"></span>
-                                        <span x-show="item.serial_number" class="text-gray-600" x-text="'S/N: ' + item.serial_number"></span>
-                                    </div>
-                                </div>
-                                
-                                <!-- Item Price and Quantity -->
-                                <div class="flex items-center justify-between mt-2">
-                                    <div class="flex items-center space-x-1 bg-gray-100 rounded-md overflow-hidden">
-                                        <button @click="updateQuantity(index, -1)"
-                                            class="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-gray-800 hover:bg-gray-200 focus:outline-none transition-colors">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
-                                            </svg>
-                                        </button>
-                                        <span x-text="item.quantity" class="w-8 text-center text-sm font-medium"></span>
-                                        <button @click="updateQuantity(index, 1)"
-                                            class="w-8 h-8 flex items-center justify-center text-gray-600 hover:text-gray-800 hover:bg-gray-200 focus:outline-none transition-colors">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                    
-                                    <!-- Price Info -->
-                                    <div class="text-right">
-                                        <div class="text-xs text-gray-500" x-text="'KSh ' + item.price.toFixed(0) + ' × ' + item.quantity"></div>
-                                        <div class="font-bold text-orange-600" x-text="'KSh ' + (item.price * item.quantity).toFixed(0)"></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-
-                    <!-- Payment Section - Always at the bottom -->
-                    <div class="cart-payment-section">
-                        @if(config('offline.enabled'))
-                        <!-- Offline Mode Warning -->
-                        <div x-show="!isOnline" class="mb-3 p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-800">
-                            <div class="flex items-center">
-                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                                </svg>
-                                <span>Sale will be processed offline</span>
-                            </div>
-                        </div>
-                        @endif
-
-                        <!-- Payment Method Selection -->
-                        <div class="mb-4">
-                            <div class="flex space-x-2">
-                                <button @click="handlePaymentMethodChange('cash')"
-                                    class="flex-1 py-2 px-3 rounded-md text-sm border-2 transition-colors flex items-center justify-center"
-                                    :class="paymentMethod === 'cash' ? 'border-orange-500 text-orange-600 bg-orange-50' :
-                                        'border-gray-300 text-gray-700 bg-white hover:border-gray-400'">
-                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                                    </svg>
-                                    Cash
-                                </button>
-                                <button @click="handlePaymentMethodChange('credit')"
-                                    class="flex-1 py-2 px-3 rounded-md text-sm border-2 transition-colors flex items-center justify-center"
-                                    :class="paymentMethod === 'credit' ? 'border-orange-500 text-orange-600 bg-orange-50' :
-                                        'border-gray-300 text-gray-700 bg-white hover:border-gray-400'">
-                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                                    </svg>
-                                    Credit
-                                </button>
-                            </div>
-                        </div>
-
-                        {{--
-                            Customer details, for cash as well as credit.
-
-                            Credit must name a customer - somebody has to owe the
-                            balance. Cash may, and the Walk-in option keeps a queue
-                            moving when they would rather not. Naming a cash
-                            customer is also what earns them an SMS receipt: the
-                            walk-in placeholder's number is not sendable.
-                        --}}
-                        <div x-transition class="mb-4">
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="text-xs font-semibold text-gray-700">Customer</span>
-                                <span class="text-xs"
-                                      :class="paymentMethod === 'credit' ? 'text-orange-600 font-medium' : 'text-gray-400'"
-                                      x-text="paymentMethod === 'credit' ? 'Required' : 'Optional'"></span>
-                            </div>
-
-                            <!-- Customer Selection Mode Toggle -->
-                            <div class="mb-3">
-                                <div class="flex space-x-1 bg-gray-100 rounded-md p-1">
-                                    <button x-show="paymentMethod === 'cash'"
-                                        @click="customerMode = 'none'; handleCustomerModeChange('none')"
-                                        class="flex-1 py-1.5 px-3 rounded text-xs font-medium transition-colors"
-                                        :class="customerMode === 'none' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'">
-                                        Walk-in
-                                    </button>
-                                    <button @click="customerMode = 'existing'; handleCustomerModeChange('existing')"
-                                        class="flex-1 py-1.5 px-3 rounded text-xs font-medium transition-colors"
-                                        :class="customerMode === 'existing' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'">
-                                        Select
-                                    </button>
-                                    <button @click="customerMode = 'new'; handleCustomerModeChange('new')"
-                                        class="flex-1 py-1.5 px-3 rounded text-xs font-medium transition-colors"
-                                        :class="customerMode === 'new' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-600 hover:text-gray-800'">
-                                        Add New
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div x-show="customerMode === 'none'" class="px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-xs text-gray-500">
-                                No customer recorded. The sale is filed against the shared
-                                walk-in record and no SMS receipt is sent.
-                            </div>
-
-                            <!-- Existing Customer Selection -->
-                            <div x-show="customerMode === 'existing'" class="space-y-2">
-                                <!-- Customer Dropdown -->
-                                <div class="relative" x-data="{ open: false }">
-                                    <button @click="open = !open; if(open && !customersLoaded) loadCustomers()" 
-                                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 shadow-sm bg-white text-left flex items-center justify-between">
-                                        <span x-text="selectedCustomer ? selectedCustomer.name + ' - ' + selectedCustomer.phone : 'Select a customer'" 
-                                            class="flex-1 truncate" :class="selectedCustomer ? 'text-gray-900' : 'text-gray-400'"></span>
-                                        <svg class="w-4 h-4 text-gray-400 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                                        </svg>
-                                    </button>
-                                    
-                                    <!-- Dropdown Menu -->
-                                    <div x-show="open" @click.away="open = false" 
-                                        x-transition:enter="transition ease-out duration-100"
-                                        x-transition:enter-start="transform opacity-0 scale-95"
-                                        x-transition:enter-end="transform opacity-100 scale-100"
-                                        x-transition:leave="transition ease-in duration-75"
-                                        x-transition:leave-start="transform opacity-100 scale-100"
-                                        x-transition:leave-end="transform opacity-0 scale-95"
-                                        class="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                                        
-                                        <!-- Search Input -->
-                                        <div class="p-2 border-b">
-                                            <div class="flex space-x-1">
-                                                <input type="text" x-model="customerSearch" @input="searchCustomers" 
-                                                    placeholder="Search customers..." 
-                                                    class="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-orange-500">
-                                                <button @click="refreshCustomerList()" 
-                                                    class="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors flex items-center"
-                                                    title="Refresh customer list">
-                                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Loading State -->
-                                        <div x-show="loadingCustomers" class="p-3 text-center text-sm text-gray-500">
-                                            Loading customers...
-                                        </div>
-                                        
-                                        <!-- Customer List -->
-                                        <div x-show="!loadingCustomers">
-                                            <template x-if="filteredCustomers.length === 0">
-                                                <div class="p-3 text-center text-sm text-gray-500">
-                                                    No customers found
-                                                </div>
-                                            </template>
-                                            
-                                            <template x-for="customer in filteredCustomers" :key="customer.id">
-                                                <button @click="selectCustomer(customer); open = false" 
-                                                    class="w-full px-3 py-2 text-left hover:bg-orange-50 focus:bg-orange-50 focus:outline-none transition-colors border-b border-gray-100 last:border-b-0"
-                                                    :class="customer.id === recentlyAddedCustomerId ? 'bg-green-50 border-green-200' : ''">
-                                                    <div class="flex justify-between items-center">
-                                                        <div class="flex items-center">
-                                                            <div>
-                                                                <div class="flex items-center">
-                                                                    <span class="font-medium text-sm text-gray-900" x-text="customer.name"></span>
-                                                                    <span x-show="customer.id === recentlyAddedCustomerId" 
-                                                                        class="ml-2 px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded-full font-medium">
-                                                                        New
-                                                                    </span>
-                                                                </div>
-                                                                <div class="text-xs text-gray-500" x-text="customer.phone"></div>
-                                                            </div>
-                                                        </div>
-                                                        <div x-show="customer.balance > 0" class="text-xs font-medium">
-                                                            <span class="text-red-600" x-text="'KSh ' + customer.balance.toFixed(0)"></span>
-                                                        </div>
-                                                    </div>
-                                                </button>
-                                            </template>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <!-- Selected Customer Info -->
-                                <div x-show="selectedCustomer" class="p-2 bg-orange-50 border border-orange-200 rounded text-xs">
-                                    <div class="flex justify-between items-start">
-                                        <div>
-                                            <div class="font-medium text-orange-800" x-text="selectedCustomer?.name"></div>
-                                            <div class="text-orange-600" x-text="selectedCustomer?.phone"></div>
-                                        </div>
-                                        <div x-show="selectedCustomer?.balance > 0" class="text-right">
-                                            <div class="text-xs text-orange-600">Current Balance</div>
-                                            <div class="font-bold text-red-600" x-text="'KSh ' + selectedCustomer?.balance.toFixed(0)"></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- New Customer Form -->
-                            <div x-show="customerMode === 'new'" class="space-y-2">
-                                <div class="relative">
-                                    <input type="text" x-model="customerDetails.name" placeholder="Customer Name"
-                                        class="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 shadow-sm">
-                                    <svg class="w-4 h-4 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                                    </svg>
-                                </div>
-                                <div class="relative">
-                                    <input type="text" x-model="customerDetails.phone" placeholder="Phone Number"
-                                        class="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 shadow-sm">
-                                    <svg class="w-4 h-4 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
-                                    </svg>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Checkout Button -->
-                        <button @click="processSale" :disabled="!canCheckout"
-                            class="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3 px-4 rounded-md hover:from-orange-600 hover:to-orange-700 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center font-medium transition-all shadow-sm">
-                            <svg x-show="isProcessing" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                                xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10"
-                                    stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor"
-                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                                </path>
-                            </svg>
-                            <span x-text="isProcessing ? 'Processing...' : 'Complete Sale'"></span>
-                        </button>
-                    </div>
-                </div>
             </div>
         </div>
 
-        <!-- Enhanced Receipt Modal - Screen version (hidden during printing) - Now dismissible when clicking outside -->
-        <div x-show="showReceipt" @click.self="closeReceipt"
-            class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 print:hidden"
-            x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0"
-            x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-200"
-            x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
-            <div class="bg-white rounded-lg shadow-lg max-w-md w-full max-h-[90vh] overflow-y-auto relative receipt-animation"
-                x-transition:enter="transition ease-out duration-300"
-                x-transition:enter-start="opacity-0 transform scale-95"
-                x-transition:enter-end="opacity-100 transform scale-100"
-                x-transition:leave="transition ease-in duration-200"
-                x-transition:leave-start="opacity-100 transform scale-100"
-                x-transition:leave-end="opacity-0 transform scale-95">
-                
-                <!-- Close button -->
-                <button @click="closeReceipt" class="absolute top-3 right-3 z-10 text-white hover:text-gray-200 transition-colors">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
 
-                <!-- Receipt Header -->
-                <div class="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-4 rounded-t-lg">
-                    <div class="flex items-center justify-between">
-                        <h2 class="text-xl font-bold flex items-center">
-                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                            </svg>
-                            Receipt
-                        </h2>
-                        <div class="flex items-center">
-                        <span x-show="orderNumber !== null"
-                              class="text-sm bg-white text-orange-600 px-2 py-1 rounded-full font-bold">Order #<span x-text="orderNumber"></span></span>
-                        <span x-show="orderNumber === null"
-                              class="text-sm bg-white text-orange-600 px-2 py-1 rounded-full font-medium">#<span x-text="receiptNumber"></span></span>
-                        @if(config('offline.enabled'))
-                            <span x-show="!isOnline" class="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">Offline</span>
-                                @endif
-                            </div>
+        {{--
+            Rider picker.
+
+            Opened by the Pick-up button on a tile. Tapping a rider books the
+            tile's quantity out to them on the spot - there is no confirm step,
+            matching one-tap selling. The list is fetched fresh on every open so
+            availability reflects allocations made at other tills since the
+            page loaded, not a stale snapshot.
+        --}}
+        <div x-show="showRiderModal && _initialized" @click.self="closeRiderPicker()"
+             @keydown.escape.window="closeRiderPicker()"
+             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             style="display: none;">
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-md overflow-hidden"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0 transform scale-95"
+                 x-transition:enter-end="opacity-100 transform scale-100"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100 transform scale-100"
+                 x-transition:leave-end="opacity-0 transform scale-95">
+
+                <div class="rider-modal__head">
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-900">Pick-up</h3>
+                        <p class="text-sm text-gray-600"
+                           x-text="riderProduct ? qtyFor(riderProduct.id) + ' x ' + riderProduct.name : ''"></p>
                     </div>
+                    <button type="button" class="rider-modal__close" @click="closeRiderPicker()" aria-label="Close">&times;</button>
                 </div>
 
-                <!-- Receipt Content - Enhanced Screen View -->
-                <div class="p-5">
-                    <div class="text-center mb-4">
-                        <h3 class="font-bold text-xl text-gray-900">{{ config('app.name', 'EldoGas') }}</h3>
-                        <p class="text-sm text-gray-600 mt-1">Tel: +254 700 123456</p>
-                    </div>
+                <template x-if="riderStep === 'pick'">
+                    <div>
+                        <div x-show="ridersLoading" class="rider-modal__empty">Loading riders&hellip;</div>
 
-                    <div class="grid grid-cols-2 gap-4 mb-4">
-                        <div class="bg-orange-50 border border-orange-200 p-3 rounded-lg" x-show="orderNumber !== null">
-                            <p class="text-xs text-orange-700 mb-1">Order No.</p>
-                            <p class="font-bold text-2xl text-orange-700 leading-none" x-text="orderNumber"></p>
+                        <div x-show="!ridersLoading && riders.length === 0" class="rider-modal__empty">
+                            No active riders yet.
+                            <a href="{{ route('pos.riders.index') }}" class="text-orange-600 font-semibold hover:underline">Add a rider</a>
                         </div>
-                        <div class="bg-gray-50 p-3 rounded-lg">
-                            <p class="text-xs text-gray-500 mb-1">Receipt Ref.</p>
-                            <p class="font-medium text-gray-800 text-sm" x-text="receiptNumber"></p>
-                        </div>
-                        <div class="bg-gray-50 p-3 rounded-lg">
-                            <p class="text-xs text-gray-500 mb-1">Date</p>
-                            <p class="font-medium text-gray-800" x-text="(new Date()).toLocaleDateString()"></p>
-                        </div>
-                        <div class="bg-gray-50 p-3 rounded-lg">
-                            <p class="text-xs text-gray-500 mb-1">Cashier</p>
-                            <p class="font-medium text-gray-800">{{ auth()->user()->name }}</p>
-                        </div>
-                        <div class="bg-gray-50 p-3 rounded-lg">
-                            <p class="text-xs text-gray-500 mb-1">Payment</p>
-                            <p class="font-medium text-gray-800" x-text="paymentMethod === 'cash' ? 'Cash' : 'Credit'"></p>
-                        </div>
-                    </div>
 
-                    <div class="border-t border-b border-gray-200 py-4 mb-4">
-                        <h4 class="font-semibold text-gray-800 mb-3 flex items-center">
-                            <svg class="w-4 h-4 mr-1 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
-                            </svg>
-                            Items
-                        </h4>
-                        <div class="space-y-3">
-                            <template x-for="(item, index) in cart" :key="index">
-                                <div class="flex justify-between items-center border-b border-gray-100 pb-2">
-                                    <div class="flex-1">
-                                        <p class="font-medium text-gray-800" x-text="item.name"></p>
-                                        <p x-show="item.serial_number" class="text-xs text-gray-500" x-text="'S/N: ' + item.serial_number"></p>
-                                        <p class="text-xs text-gray-600 mt-1"
-                                            x-text="item.quantity + ' × KSh ' + item.price.toFixed(0)"></p>
+                        <div x-show="!ridersLoading && riders.length > 0" class="rider-list">
+                            <template x-for="rider in riders" :key="rider.id">
+                                <div class="rider-item">
+                                    {{--
+                                        Two separate buttons, not one nested in the other:
+                                        tapping the row assigns immediately, tapping the
+                                        phone icon opens the optional customer number
+                                        first. A button inside a button is invalid markup
+                                        and browsers resolve the click unpredictably.
+                                    --}}
+                                    <div class="rider-row"
+                                         :class="{ 'is-out': rider.is_out, 'is-busy': allocatingId === rider.id }">
+                                        <button type="button" class="rider-row__main"
+                                                :disabled="allocatingId !== null"
+                                                @click="assignRider(rider)">
+                                            <span class="rider-row__avatar" x-text="rider.name.charAt(0).toUpperCase()"></span>
+                                            <span class="rider-row__body">
+                                                <span class="rider-row__name" x-text="rider.name"></span>
+                                                <span class="rider-row__phone" x-text="rider.phone"></span>
+                                            </span>
+                                            <span class="rider-row__pill" :class="rider.is_out ? 'out' : 'free'"
+                                                  x-text="allocatingId === rider.id ? 'Assigning…' : rider.availability"></span>
+                                        </button>
+
+                                        <button type="button" class="rider-row__num"
+                                                :class="{ 'is-active': customerForRiderId === rider.id }"
+                                                :disabled="allocatingId !== null"
+                                                @click.stop="toggleCustomerFor(rider)"
+                                                :aria-label="'Add customer number for ' + rider.name"
+                                                title="Add customer number (optional)">
+                                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                                            </svg>
+                                        </button>
                                     </div>
-                                    <p class="font-medium text-gray-800" x-text="'KSh ' + (item.quantity * item.price).toFixed(0)">
-                                    </p>
+
+                                    {{--
+                                        Optional step. Empty and Send is the same as tapping
+                                        the row - the number is a convenience for the rider,
+                                        never a gate on the pick-up.
+                                    --}}
+                                    <div class="rider-cust" :data-rider="rider.id"
+                                         x-show="customerForRiderId === rider.id"
+                                         x-transition:enter="transition ease-out duration-150"
+                                         x-transition:enter-start="opacity-0 -translate-y-1"
+                                         x-transition:enter-end="opacity-100 translate-y-0">
+                                        <div class="rider-cust__row">
+                                            <input type="tel" inputmode="tel" class="rider-cust__input"
+                                                   x-model="customerPhone"
+                                                   :disabled="allocatingId !== null"
+                                                   placeholder="Customer phone e.g. 0722884226"
+                                                   @keydown.enter.prevent="assignRider(rider, customerPhone)"
+                                                   @keydown.escape.stop="closeCustomerFor()">
+                                            <button type="button" class="rider-cust__send"
+                                                    :disabled="allocatingId !== null"
+                                                    @click="assignRider(rider, customerPhone)"
+                                                    x-text="allocatingId === rider.id ? 'Sending…' : 'Send'"></button>
+                                        </div>
+                                        <p class="rider-cust__hint" x-show="!customerError">
+                                            The rider gets this number in the pick-up text. Leave blank to skip.
+                                        </p>
+                                        <p class="rider-cust__error" x-show="customerError" x-text="customerError"></p>
+                                    </div>
                                 </div>
                             </template>
                         </div>
-                    </div>
 
-                    <div class="mb-4 bg-gray-50 p-3 rounded-lg">
-                        <div class="flex justify-between mb-1">
-                            <span class="text-gray-600">Subtotal:</span>
-                            <span x-text="'KSh ' + subtotal.toFixed(0)" class="font-medium"></span>
-                        </div>
-                        <div class="flex justify-between mb-1">
-                            <span class="text-gray-600">Tax:</span>
-                            <span class="font-medium">KSh 0.00</span>
-                        </div>
-                        <div class="flex justify-between font-bold text-lg pt-2 border-t border-gray-200">
-                            <span>Total:</span>
-                            <span x-text="'KSh ' + total.toFixed(0)" class="text-orange-600"></span>
-                        </div>
-                    </div>
-
-                    <template x-if="customerMode !== 'none'">
-                        <div class="bg-orange-50 p-3 rounded-lg border border-orange-100 mb-4">
-                            <h5 class="font-medium text-orange-800 mb-2 flex items-center">
-                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                                </svg>
-                                Customer Information
-                            </h5>
-                            <div class="pl-2">
-                                <p class="text-sm flex items-center text-orange-700 mb-1">
-                                    <span class="font-medium mr-2">Name:</span> 
-                                    <span x-text="customerDetails.name"></span>
-                                </p>
-                                <p class="text-sm flex items-center text-orange-700">
-                                    <span class="font-medium mr-2">Phone:</span> 
-                                    <span x-text="customerDetails.phone"></span>
-                                </p>
-                            </div>
-                        </div>
-                    </template>
-
-                    <div class="text-center text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-                        <p class="font-semibold text-gray-700">{{ setting('receipt_footer', 'ItishaTunaDeliver, Asante.') }}</p>
-                        <p class="mt-1">Keep this receipt for any returns or exchanges.</p>
-                        @if(config('offline.enabled'))
-                        <p x-show="!isOnline" class="mt-2 text-orange-600 font-medium">Transaction processed offline</p>
-                        @endif
-                    </div>
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="flex justify-between p-4 bg-gray-50 rounded-b-lg border-t">
-                    <button @click="printReceipt()"
-                        class="bg-gradient-to-r from-orange-500 to-orange-600 text-white px-4 py-2 rounded-md hover:from-orange-600 hover:to-orange-700 focus:outline-none transition-all shadow-sm flex items-center">
-                        <svg class="inline-block w-4 h-4 mr-1" fill="none" stroke="currentColor"
-                            viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                        </svg>
-                        Print Receipt
-                    </button>
-                    <button @click="closeReceipt"
-                        class="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 focus:outline-none transition-colors flex items-center">
-                        <svg class="inline-block w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                        </svg>
-                        New Sale
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Improved Printable Receipt Structure (unchanged for print functionality) -->
-        <div x-show="showReceipt" class="printable-receipt" style="display: none;">
-            <div class="receipt-container">
-                <!-- Company name and info -->
-                <div class="company-name">Eldogas</div>
-                <div class="company-info">Tel:+254724556855</div>
-                <div class="separator-line">****************************</div>
-                
-                <!-- Receipt details -->
-                <div class="transaction-info" x-show="orderNumber !== null">
-                    <div class="transaction-label">ORDER NO:</div>
-                    <div class="transaction-value" x-text="orderNumber"></div>
-                </div>
-                <div class="transaction-info">
-                    <div class="transaction-label">RECEIPT #:</div>
-                    <div class="transaction-value" x-text="receiptNumber"></div>
-                </div>
-                <div class="transaction-info">
-                    <div class="transaction-label">DATE:</div>
-                    <div class="transaction-value" x-text="new Date().toLocaleDateString('en-GB')"></div>
-                </div>
-                <div class="transaction-info">
-                    <div class="transaction-label">TIME:</div>
-                    <div class="transaction-value" x-text="new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})"></div>
-                </div>
-                <div class="transaction-info">
-                    <div class="transaction-label">PAYMENT:</div>
-                    <div class="transaction-value" x-text="paymentMethod === 'cash' ? 'Cash' : 'Credit'"></div>
-                </div>
-                <div class="transaction-info">
-                    <div class="transaction-label">CASHIER:</div>
-                    <div class="transaction-value">{{ substr(auth()->user()->name, 0, 10) }}</div>
-                </div>
-                <div x-show="!isOnline" class="transaction-info">
-                    <div class="transaction-label">MODE:</div>
-                    <div class="transaction-value">OFFLINE</div>
-                </div>
-                <div class="separator-line">----------------------------</div>
-                
-                <!-- Items section -->
-                <div class="section-title">ITEMS</div>
-                <table class="items-table">
-                    <tr class="items-header">
-                        <td class="item-name">ITEM</td>
-                        <td class="item-qty">QTY</td>
-                        <td class="item-price">PRICE</td>
-                        <td class="item-total">TOTAL</td>
-                    </tr>
-                    <template x-for="(item, index) in cart" :key="index">
-                        <tr>
-                            <td class="item-name">
-                                <div x-text="item.name"></div>
-                                <div x-show="item.order_number !== null && item.order_number !== undefined"
-                                     class="serial-number" x-text="'ORDER NO: ' + item.order_number"></div>
-                                <div x-show="item.serial_number" class="serial-number" x-text="'S/N:' + item.serial_number"></div>
-                            </td>
-                            <td class="item-qty" x-text="item.quantity"></td>
-                            <td class="item-price" x-text="item.price.toFixed(0)"></td>
-                            <td class="item-total" x-text="(item.quantity * item.price).toFixed(0)"></td>
-                        </tr>
-                    </template>
-                </table>
-                <div class="separator-line">----------------------------</div>
-                
-                <!-- Totals section -->
-                <div class="totals-section">
-                    <div class="totals-label">SUBTOTAL:</div>
-                    <div class="totals-value" x-text="'KSH ' + subtotal.toFixed(0)"></div>
-                </div>
-                <div class="totals-section">
-                    <div class="totals-label">TAX (0%):</div>
-                    <div class="totals-value">KSH 0</div>
-                </div>
-                <div class="totals-section grand-total">
-                    <div class="totals-label">TOTAL:</div>
-                    <div class="totals-value" x-text="'KSH ' + total.toFixed(0)"></div>
-                </div>
-                
-                {{-- Shown whenever a customer was recorded, cash or credit. --}}
-                <template x-if="customerMode !== 'none'">
-                    <div class="customer-section">
-                        <div class="separator-line">----------------------------</div>
-                        <div class="customer-section-title">CUSTOMER DETAILS</div>
-                        <div class="customer-info">
-                            <div class="customer-label">Name:</div>
-                            <div x-text="customerDetails.name"></div>
-                        </div>
-                        <div class="customer-info">
-                            <div class="customer-label">Phone:</div>
-                            <div x-text="customerDetails.phone"></div>
+                        <div class="rider-modal__foot">
+                            <span>Tap a rider to assign, or <svg class="rider-modal__foot-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg> to add the customer's number first.</span>
+                            <a href="{{ route('pos.riders.index') }}">Manage riders</a>
                         </div>
                     </div>
                 </template>
-                
-                <!-- Footer -->
-                <div class="receipt-footer">
-                    <div class="thank-you-msg">{{ setting('receipt_footer', 'ItishaTunaDeliver, Asante.') }}</div>
-                    <div>Keep receipt for exchanges</div>
-                    <div class="store-name">*Eldogas*</div>
-                    <div x-text="new Date().toLocaleDateString('en-GB')"></div>
-                </div>
+
+                <template x-if="riderStep === 'done' && riderResult">
+                    <div class="rider-modal__done">
+                        <div class="rider-modal__tick">&#10003;</div>
+                        <h4 x-text="'Allocated to ' + riderResult.rider.name"></h4>
+                        <p class="ref" x-text="riderResult.reference_number"></p>
+                        <p x-text="riderResult.duplicate
+                                ? 'This pick-up was already recorded.'
+                                : 'The rider has been sent the order by SMS.'"></p>
+                        <p class="cust" x-show="riderResult.customer_phone"
+                           x-text="'Customer ' + riderResult.customer_phone + ' included'"></p>
+                        <button type="button" @click="closeRiderPicker()">Done</button>
+                    </div>
+                </template>
             </div>
         </div>
 
@@ -1635,41 +1250,79 @@
             // Enhanced POS System with Conditional Offline Capability
             function enhancedPosSystem() {
                 return {
-                    // Existing state variables
-                    cart: [],
                     searchQuery: '',
                     currentCategory: null,
                     showCategoryDrawer: false,
-                    paymentMethod: 'cash',
-                    customerMode: 'none', // 'none' (walk-in), 'existing' or 'new'
-                    customerDetails: {
-                        customer_id: null,
-                        name: '',
-                        phone: ''
-                    },
-                    // Customer selection state
-                    selectedCustomer: null,
-                    customers: [],
-                    filteredCustomers: [],
-                    customerSearch: '',
-                    loadingCustomers: false,
-                    customersLoaded: false,
-                    recentlyAddedCustomerId: null, // Track recently added customer
-                    showReceipt: false,
                     showError: false,
-                    receiptNumber: '',
-                    // Stock-derived order number returned by the server. It is
-                    // the sellable stock level of the cylinder line immediately
-                    // before this sale deducted it, so it counts down as stock
-                    // does. Not unique - receiptNumber remains the identifier.
-                    orderNumber: null,
-                    orderLines: [],
                     errorMessage: '',
                     isLoading: false,
-                    isProcessing: false,
-                    subtotal: 0,
-                    total: 0,
                     _initialized: false,
+
+                    /*
+                        Quick-sale state. There is no cart: a tap on a tile is
+                        the whole transaction.
+
+                        quantities  product id -> how many the next tap sells
+                        sellingId   the tile with a sale in flight, so the UI
+                                    can block a second tap on it
+                        lastSale    the sale the server recorded, which is what
+                                    the printable receipt renders
+                        lastSaleAt  when that sale started, used to tell the
+                                    second half of a double-click apart from a
+                                    deliberate second sale
+                    */
+                    quantities: {},
+                    sellingId: null,
+                    lastSale: null,
+                    lastSaleProductId: null,
+                    lastSaleAt: 0,
+                    pendingPrint: false,
+
+                    /*
+                        Today's takings, for the header badge. Seeded from the
+                        server at page load and incremented per sale, because
+                        the POS screen does not reload between sales - a static
+                        figure would be stale by the second one.
+
+                        Voided sales are excluded server-side; a void happens on
+                        another screen, so this catches up on the next load.
+                    */
+                    todaySalesCount: {{ (int) ($salesStats['count'] ?? 0) }},
+                    todaySalesAmount: {{ (float) ($salesStats['amount'] ?? 0) }},
+
+                    /*
+                        Rider pick-up
+                        showRiderModal  the picker is open
+                        riderProduct    the tile it was opened from
+                        riders          active riders with live availability
+                        allocatingId    rider whose assignment is in flight
+                        riderStep       'pick' while choosing, 'done' afterwards
+                        riderResult     what the server recorded, for the done step
+                    */
+                    showRiderModal: false,
+                    riderProduct: null,
+                    riders: [],
+                    ridersLoading: false,
+                    allocatingId: null,
+                    riderStep: 'pick',
+                    riderResult: null,
+                    riderCloseTimer: null,
+
+                    /*
+                        Optional customer number
+                        customerForRiderId  which rider's number field is open
+                        customerPhone       what has been typed into it
+                        customerError       server's reason for refusing it
+                    */
+                    customerForRiderId: null,
+                    customerPhone: '',
+                    customerError: '',
+
+                    // Two clicks inside this window are one double-click. The
+                    // browser's own dblclick threshold is around 500ms; staying
+                    // just under it means a deliberate second sale is still
+                    // possible without the printer firing.
+                    doubleClickWindow: 450,
                     
                     // Offline-related state variables - Conditional based on config
                     isOnline: window.offlineModeEnabled ? navigator.onLine : true,
@@ -1709,6 +1362,14 @@
                         return products;
                     },
 
+                    // Thousands-separated, for the header tooltip.
+                    get todaySalesAmountFormatted() {
+                        return Number(this.todaySalesAmount).toLocaleString('en-KE', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                        });
+                    },
+
                     get totalInventoryStock() {
                         return this.allProducts.reduce((total, product) => {
                             const stock = parseInt(product.stock, 10) || 0;
@@ -1716,35 +1377,6 @@
                         }, 0);
                     },
 
-                    get canCheckout() {
-                        if (this.cart.length === 0 || this.isProcessing) return false;
-
-                        // Check stock availability for all items
-                        for (const item of this.cart) {
-                            const product = this.allProducts.find(p => p.id === item.id);
-                            if (!product || product.stock < item.quantity) {
-                                return false;
-                            }
-                        }
-
-                        // Credit always needs a customer; cash only needs one if
-                        // the cashier chose to record one, in which case it has
-                        // to be complete enough to identify them.
-                        if (this.paymentMethod === 'credit' && this.customerMode === 'none') {
-                            return false;
-                        }
-
-                        if (this.customerMode === 'existing') {
-                            return this.selectedCustomer !== null;
-                        }
-
-                        if (this.customerMode === 'new') {
-                            return this.customerDetails.name.trim() !== '' &&
-                                this.customerDetails.phone.trim() !== '';
-                        }
-
-                        return true;
-                    },
 
                     get connectionStatusText() {
                         if (!this.offlineModeEnabled) {
@@ -1805,9 +1437,9 @@
                                 this.setupBasicConnectionMonitoring();
                             }
 
-                            // Reset state
-                            this.resetSaleState();
-                            
+                            // Nothing to reset: quick-sale holds no cart, and
+                            // per-product quantities default to 1 on first read.
+
                             // Initialize inventory list
                             this.filteredInventoryList = this.allProducts;
                             
@@ -1919,301 +1551,20 @@
                     // they sit behind auth:sanctum, and this page is
                     // session-authenticated. This web route is the one that
                     // shares the session.
-                    async fetchCustomers(query = '') {
-                        const url = '{{ route('pos.customers.search') }}?q=' + encodeURIComponent(query);
 
-                        const response = await fetch(url, {
-                            headers: {
-                                'Accept': 'application/json',
-                                'X-Requested-With': 'XMLHttpRequest',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
-                            }
-                        });
 
-                        if (!response.ok) {
-                            throw new Error('Failed to load customers');
-                        }
 
-                        // balance arrives as a decimal string; the template
-                        // calls .toFixed() on it, which throws on a string.
-                        return (await response.json()).map(c => ({
-                            ...c,
-                            balance: Number(c.balance) || 0
-                        }));
-                    },
 
-                    async loadCustomers() {
-                        if (this.customersLoaded) return;
-
-                        this.loadingCustomers = true;
-                        try {
-                            this.customers = await this.fetchCustomers('');
-                            this.filteredCustomers = this.customers;
-                            this.customersLoaded = true;
-                        } catch (error) {
-                            console.error('Error loading customers:', error);
-                            this.showNotification('Failed to load customers', 'error');
-                        } finally {
-                            this.loadingCustomers = false;
-                        }
-                    },
-
-                    searchCustomers() {
-                        // Debounced: this fires on every keystroke, and the
-                        // search runs against the whole table rather than a
-                        // preloaded page of it.
-                        clearTimeout(this._customerSearchTimer);
-
-                        this._customerSearchTimer = setTimeout(async () => {
-                            const query = this.customerSearch.trim();
-
-                            try {
-                                this.loadingCustomers = true;
-                                this.filteredCustomers = await this.fetchCustomers(query);
-
-                                if (query === '') {
-                                    this.customers = this.filteredCustomers;
-                                }
-                            } catch (error) {
-                                console.error('Customer search failed:', error);
-                            } finally {
-                                this.loadingCustomers = false;
-                            }
-                        }, 250);
-                    },
-
-                    selectCustomer(customer) {
-                        this.selectedCustomer = customer;
-                        this.customerDetails.customer_id = customer.id;
-                        // Also populate name and phone for display purposes
-                        this.customerDetails.name = customer.name;
-                        this.customerDetails.phone = customer.phone;
-                    },
-
-                    clearCustomerSelection() {
-                        this.selectedCustomer = null;
-                        this.customerDetails.customer_id = null;
-                        this.customerDetails.name = '';
-                        this.customerDetails.phone = '';
-                        this.customerSearch = '';
-                    },
 
                     // Add newly created customer to the local customer list
-                    async addNewCustomerToList(customer) {
-                        try {
-                            // Add to customers array if not already present
-                            const existingIndex = this.customers.findIndex(c => c.id === customer.id);
-                            if (existingIndex === -1) {
-                                this.customers.unshift(customer); // Add to beginning of list
-                                this.customers.sort((a, b) => a.name.localeCompare(b.name)); // Keep sorted
-                                
-                                // Show success notification
-                                this.showNotification(`Customer "${customer.name}" added successfully!`, 'success');
-                                
-                                // Mark as recently added
-                                this.recentlyAddedCustomerId = customer.id;
-                                
-                                // Clear the "new" indicator after 10 seconds
-                                setTimeout(() => {
-                                    this.recentlyAddedCustomerId = null;
-                                }, 10000);
-                            } else {
-                                // Update existing customer (in case balance changed)
-                                this.customers[existingIndex] = customer;
-                            }
-                            
-                            // Update filtered list
-                            this.searchCustomers();
-                            
-                            // Set as selected customer and switch to existing mode for future use
-                            this.selectedCustomer = customer;
-                            this.customerDetails.customer_id = customer.id;
-                            this.customerDetails.name = customer.name;
-                            this.customerDetails.phone = customer.phone;
-                            
-                            // Don't switch mode automatically - let user see what happened
-                            // this.customerMode = 'existing';
-                            
-                            console.log('New customer added to list:', customer.name);
-                        } catch (error) {
-                            console.error('Error adding customer to list:', error);
-                        }
-                    },
 
                     // Refresh customer list from server
-                    async refreshCustomerList() {
-                        this.customersLoaded = false;
-                        this.customers = [];
-                        this.filteredCustomers = [];
-                        await this.loadCustomers();
-                    },
 
                     // Enhanced sale processing with conditional offline support
-                    async processSale() {
-                        if (!this.canCheckout) return;
-
-                        this.isProcessing = true;
-
-                        try {
-                            // Prepare sale data.
-                            //
-                            // Driven by the customer mode rather than the payment
-                            // method: a cash sale may name a customer too, and
-                            // 'none' means walk-in, so nothing is sent.
-                            let customerDetails = null;
-
-                            if (this.customerMode === 'existing' && this.selectedCustomer) {
-                                customerDetails = {
-                                    customer_id: this.selectedCustomer.id,
-                                    name: this.selectedCustomer.name,
-                                    phone: this.selectedCustomer.phone
-                                };
-                            } else if (this.customerMode === 'new') {
-                                customerDetails = {
-                                    name: this.customerDetails.name,
-                                    phone: this.customerDetails.phone
-                                };
-                            }
-
-                            const saleData = {
-                                user_id: {{ auth()->id() }},
-                                cart_items: this.cart.map(item => ({
-                                    id: item.id,
-                                    quantity: item.quantity,
-                                    price: item.price,
-                                    serial_number: item.serial_number
-                                })),
-                                total_amount: this.total,
-                                payment_method: this.paymentMethod,
-                                customer_details: customerDetails
-                            };
-
-                            let result;
-
-                            if (this.offlineModeEnabled) {
-                                // Full offline-enabled processing for production
-                                if (this.isOnline) {
-                                    // Try online processing first
-                                    try {
-                                        result = await this.processSaleOnline(saleData);
-                                    } catch (error) {
-                                        console.warn('Online processing failed, falling back to offline:', error);
-                                        result = await this.processSaleOffline(saleData);
-                                    }
-                                } else {
-                                    // Process offline
-                                    result = await this.processSaleOffline(saleData);
-                                }
-                            } else {
-                                // Development mode - online only
-                                result = await this.processSaleOnline(saleData);
-                            }
-
-                            if (result.success) {
-                                this.receiptNumber = result.receipt_number;
-                                this.orderNumber = result.order_number ?? null;
-                                // Per-line stock numbers, authoritative prices and
-                                // resulting stock levels, all as computed by the server.
-                                this.orderLines = result.receipt_data?.items ?? [];
-                                this.applyServerLineData(this.orderLines);
-
-                                // If we created a new customer, add them to our customer list
-                                if (this.customerMode === 'new' && result.customer) {
-                                    await this.addNewCustomerToList(result.customer);
-                                } else if (this.customerMode === 'existing' && this.selectedCustomer) {
-                                    // Update balance for existing customer after credit sale
-                                    this.selectedCustomer.balance = result.customer?.balance || this.selectedCustomer.balance;
-                                    // Update in customers list too
-                                    const customerIndex = this.customers.findIndex(c => c.id === this.selectedCustomer.id);
-                                    if (customerIndex !== -1) {
-                                        this.customers[customerIndex].balance = this.selectedCustomer.balance;
-                                    }
-                                }
-                                
-                                this.showReceipt = true;
-
-                                // Stock was already synced from the server response by
-                                // applyServerLineData() above. Do not decrement again
-                                // here - that double-counted every sale on screen.
-
-                                if (this.offlineModeEnabled) {
-                                    // Update sync status
-                                    await this.updateSyncStatus();
-
-                                    // Show appropriate message
-                                    const mode = result.offline_mode ? 'offline' : 'online';
-                                    console.log(`Sale processed successfully in ${mode} mode:`, result.receipt_number);
-                                    
-                                    if (result.offline_mode) {
-                                        this.showNotification('Sale processed offline. Will sync when online.', 'warning');
-                                    }
-                                } else {
-                                    console.log('Sale processed successfully:', result.receipt_number);
-                                }
-                            } else {
-                                throw new Error(result.message || 'Sale processing failed');
-                            }
-
-                        } catch (error) {
-                            console.error('Sale processing error:', error);
-                            this.errorMessage = error.message || 'An error occurred while processing the sale';
-                            this.showError = true;
-                        } finally {
-                            this.isProcessing = false;
-                        }
-                    },
 
                     // Process sale online
-                    async processSaleOnline(saleData) {
-                        const response = await fetch('{{ route('pos.sales.store') }}', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
-                            },
-                            body: JSON.stringify(saleData)
-                        });
-
-                        // Read the body first. The server explains refusals in
-                        // JSON - "6kg Gas Cylinder is out of stock" - and
-                        // throwing on the status alone would discard that and
-                        // show the cashier a bare status code instead.
-                        let result = null;
-                        try {
-                            result = await response.json();
-                        } catch (e) {
-                            result = null;
-                        }
-
-                        if (!response.ok) {
-                            if (result && result.message) {
-                                const err = new Error(result.message);
-                                err.errorType = result.error_type || null;
-                                err.shortages = result.shortages || [];
-                                throw err;
-                            }
-
-                            throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
-                        }
-
-                        if (!result || !result.success) {
-                            throw new Error((result && result.message) || 'Server rejected the sale');
-                        }
-
-                        return {
-                            ...result,
-                            offline_mode: false
-                        };
-                    },
 
                     // Process sale offline (only available when offline mode is enabled)
-                    async processSaleOffline(saleData) {
-                        if (!this.offlineModeEnabled || !this.offlineManager) {
-                            throw new Error('Offline processing not available');
-                        }
-
-                        return await this.offlineManager.processSaleOffline(saleData);
-                    },
 
                     // Update sync status (conditional based on offline mode)
                     async updateSyncStatus() {
@@ -2283,19 +1634,314 @@
                     // reservations and any concurrent sale rather than a local
                     // guess. Falls back to local arithmetic if the server did
                     // not send line data.
-                    applyServerLineData(lines) {
-                        if (!Array.isArray(lines) || lines.length === 0) {
-                            this.updateLocalProductStock();
+
+                    /* ------------------------------------------------------
+                       Quick sale - one tap is the whole transaction
+                       ------------------------------------------------------ */
+
+                    qtyFor(productId) {
+                        return this.quantities[productId] || 1;
+                    },
+
+                    adjustQty(product, delta) {
+                        const next = this.qtyFor(product.id) + delta;
+                        if (next < 1 || next > product.stock) return;
+                        this.quantities[product.id] = next;
+                    },
+
+                    /**
+                     * A tap on a tile sells it.
+                     *
+                     * The repeat guard is pure double-sale protection: a tile is
+                     * a big target with no confirm step behind it, so an
+                     * impatient second tap must not take money twice. Anyone who
+                     * genuinely wants two uses the stepper.
+                     */
+                    sellOnClick(product) {
+                        if (product.stock <= 0 || this.sellingId !== null) return;
+
+                        const isRepeatTap = this.lastSaleProductId === product.id
+                            && (Date.now() - this.lastSaleAt) < this.doubleClickWindow;
+
+                        if (isRepeatTap) return;
+
+                        this.quickSell(product);
+                    },
+
+                    /**
+                     * Sell this tile and print the receipt, in one press.
+                     *
+                     * Replaces double-clicking the tile. quickSell() already
+                     * prints when pendingPrint is set, so this only has to raise
+                     * the flag and hand over - which also means the print waits
+                     * for the SERVER's receipt rather than racing it.
+                     */
+                    sellAndPrint(product) {
+                        if (product.stock <= 0 || this.sellingId !== null) return;
+
+                        this.pendingPrint = true;
+                        this.quickSell(product);
+                    },
+
+                    async quickSell(product) {
+                        const quantity = this.qtyFor(product.id);
+
+                        this.sellingId = product.id;
+                        this.lastSaleProductId = product.id;
+                        this.lastSaleAt = Date.now();
+
+                        try {
+                            const response = await fetch('{{ route('pos.sales.store') }}', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
+                                },
+                                body: JSON.stringify({
+                                    cart_items: [{ id: product.id, quantity: quantity }],
+                                    payment_method: 'cash',
+                                    // Generated per attempt. If this request is
+                                    // retried, or arrives twice, the server hands
+                                    // back the sale it already made instead of
+                                    // making another.
+                                    idempotency_key: this.newIdempotencyKey()
+                                })
+                            });
+
+                            const result = await response.json();
+
+                            if (!response.ok || !result.success) {
+                                throw new Error(result.message || 'Could not complete the sale.');
+                            }
+
+                            this.lastSale = Object.assign({}, result.receipt_data, {
+                                receipt_number: result.receipt_number,
+                                order_number: result.order_number,
+                                // What printLastSale() fetches the receipt by.
+                                sale_id: result.sale_id
+                            });
+
+                            this.applyStockFromServer((result.receipt_data && result.receipt_data.items) || []);
+                            this.quantities[product.id] = 1;
+
+                            // Only a sale that was actually made counts. A
+                            // replayed idempotency key returns the existing
+                            // sale, and counting it would inflate the day.
+                            if (!result.duplicate) {
+                                this.todaySalesCount += 1;
+                                this.todaySalesAmount += Number(
+                                    (result.receipt_data && result.receipt_data.total) || 0
+                                );
+                            }
+
+                            this.showNotification(
+                                quantity + ' x ' + product.name + ' sold - ' + result.receipt_number,
+                                'success'
+                            );
+
+                            if (this.pendingPrint) {
+                                this.pendingPrint = false;
+                                this.printLastSale();
+                            }
+                        } catch (error) {
+                            console.error('Quick sale failed:', error);
+                            this.pendingPrint = false;
+                            this.errorMessage = error.message || 'Could not complete the sale.';
+                            this.showError = true;
+                        } finally {
+                            this.sellingId = null;
+                        }
+                    },
+
+                    newIdempotencyKey() {
+                        if (window.crypto && window.crypto.randomUUID) {
+                            return window.crypto.randomUUID();
+                        }
+                        return 'k-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+                    },
+
+                    /* ------------------------------------------------------
+                       Pick-up - book the tile out to a rider instead
+                       ------------------------------------------------------ */
+
+                    openRiderPicker(product) {
+                        if (product.stock <= 0 || this.sellingId !== null) return;
+
+                        clearTimeout(this.riderCloseTimer);
+                        this.riderProduct = product;
+                        this.riderStep = 'pick';
+                        this.riderResult = null;
+                        this.closeCustomerFor();
+                        this.showRiderModal = true;
+                        this.loadRiders();
+                    },
+
+                    closeRiderPicker() {
+                        if (this.allocatingId !== null) return;   // let the request land first
+
+                        clearTimeout(this.riderCloseTimer);
+                        this.showRiderModal = false;
+                        this.riderProduct = null;
+                        this.riderResult = null;
+                        this.riderStep = 'pick';
+                        this.closeCustomerFor();
+                    },
+
+                    /**
+                     * Open the optional customer-number field against one rider,
+                     * or shut it if it is already that rider's.
+                     *
+                     * Only ever one open at a time: two fields on screen would
+                     * make it ambiguous which rider Send belongs to.
+                     */
+                    toggleCustomerFor(rider) {
+                        if (this.allocatingId !== null) return;
+
+                        if (this.customerForRiderId === rider.id) {
+                            this.closeCustomerFor();
                             return;
                         }
 
-                        for (const line of lines) {
-                            const cartItem = this.cart.find(item => item.id === line.id);
-                            if (cartItem) {
-                                cartItem.order_number = line.order_number ?? null;
-                                cartItem.price = line.price ?? cartItem.price;
+                        this.customerForRiderId = rider.id;
+                        this.customerPhone = '';
+                        this.customerError = '';
+
+                        // Addressed by rider id: every row has this element,
+                        // x-show only hides the others, so a bare selector
+                        // would focus the first rider's field every time.
+                        this.$nextTick(() => {
+                            const field = document.querySelector(
+                                '.rider-cust[data-rider="' + rider.id + '"] .rider-cust__input'
+                            );
+                            if (field) field.focus();
+                        });
+                    },
+
+                    closeCustomerFor() {
+                        this.customerForRiderId = null;
+                        this.customerPhone = '';
+                        this.customerError = '';
+                    },
+
+                    async loadRiders() {
+                        this.ridersLoading = true;
+
+                        try {
+                            const response = await fetch('{{ route('pos.riders.available') }}', {
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                }
+                            });
+
+                            const riders = await response.json();
+
+                            // Free riders first. A busy one can still take more,
+                            // but should not be the first thing a thumb lands on.
+                            this.riders = (Array.isArray(riders) ? riders : []).sort((a, b) =>
+                                (a.open_allocations - b.open_allocations) || a.name.localeCompare(b.name)
+                            );
+                        } catch (error) {
+                            console.error('Could not load riders:', error);
+                            this.riders = [];
+                        } finally {
+                            this.ridersLoading = false;
+                        }
+                    },
+
+                    /**
+                     * One tap assigns. The server reserves the cylinders, texts
+                     * the rider and reports the stock level from the same locked
+                     * read, so the tile drops by exactly what was booked out.
+                     */
+                    async assignRider(rider, customerPhone = null) {
+                        if (!this.riderProduct || this.allocatingId !== null) return;
+
+                        const product = this.riderProduct;
+                        const quantity = this.qtyFor(product.id);
+
+                        // Opening the field and leaving it empty is not an error
+                        // - it is the ordinary pick-up, typed into by accident.
+                        const phone = (customerPhone || '').trim();
+
+                        this.allocatingId = rider.id;
+                        this.customerError = '';
+
+                        try {
+                            const response = await fetch('{{ route('pos.riders.allocate') }}', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content
+                                },
+                                body: JSON.stringify({
+                                    rider_id: rider.id,
+                                    items: [{ product_id: product.id, quantity: quantity }],
+                                    customer_phone: phone || null,
+                                    // Same guard as a quick sale: a retried or
+                                    // doubled request gets the allocation already
+                                    // made, not a second one.
+                                    idempotency_key: this.newIdempotencyKey()
+                                })
+                            });
+
+                            const result = await response.json();
+
+                            if (!response.ok || !result.success) {
+                                const failure = new Error(result.message || 'Could not allocate to this rider.');
+                                failure.errorType = result.error_type || null;
+                                throw failure;
                             }
 
+                            this.applyStockFromServer(result.items || []);
+                            this.quantities[product.id] = 1;
+                            this.closeCustomerFor();
+
+                            this.riderResult = result;
+                            this.riderStep = 'done';
+                            this.showNotification(
+                                quantity + ' x ' + product.name + ' allocated to ' + rider.name + ' - ' + result.reference_number,
+                                'success'
+                            );
+                        } catch (error) {
+                            console.error('Rider allocation failed:', error);
+                            this.allocatingId = null;
+
+                            // A number that cannot be dialled is a typo to fix,
+                            // not a failed pick-up. Keep the field open with
+                            // what they typed still in it; throwing the modal
+                            // away would lose the rider choice as well.
+                            if (error.errorType === 'invalid_customer_phone') {
+                                this.customerForRiderId = rider.id;
+                                this.customerError = error.message;
+                                return;
+                            }
+
+                            this.closeRiderPicker();
+                            this.errorMessage = error.message || 'Could not allocate to this rider.';
+                            this.showError = true;
+                            return;
+                        } finally {
+                            this.allocatingId = null;
+                        }
+
+                        // Long enough to read the reference, short enough not
+                        // to get in the way of the next customer.
+                        this.riderCloseTimer = setTimeout(() => this.closeRiderPicker(), 3000);
+                    },
+
+                    /*
+                        Stock figures come from the same locked read that performed
+                        the deduction, so they already account for other tills and
+                        for cylinders reserved against drop-offs. Subtracting
+                        locally would not.
+                    */
+                    applyStockFromServer(lines) {
+                        for (const line of lines) {
                             const product = this.allProducts.find(p => p.id === line.id);
                             if (product && typeof line.stock_after === 'number') {
                                 product.stock = line.stock_after;
@@ -2304,129 +1950,44 @@
                         }
                     },
 
-                    // Fallback: decrement locally when the server sent no line data.
-                    updateLocalProductStock() {
-                        for (const cartItem of this.cart) {
-                            const product = this.allProducts.find(p => p.id === cartItem.id);
-                            if (product) {
-                                product.stock = Math.max(0, product.stock - cartItem.quantity);
-                                product.out_of_stock = product.stock <= 0;
-                            }
-                        }
-                    },
+                    /**
+                     * Print with no preview dialog: reveal the hidden receipt,
+                     * print, hide it again. Alpine needs a tick to render the
+                     * template before the browser snapshots the page.
+                     */
+                    printLastSale() {
+                        const saleId = this.lastSale && this.lastSale.sale_id;
+                        if (!saleId) return;
 
-                    // Enhanced add to cart with offline stock checking
-                    addToCart(product) {
-                        // `stock` carries sellable stock: physical units minus any
-                        // reserved for cylinder collections awaiting pickup. The
-                        // server re-checks this under a row lock at sale time, so
-                        // this guard is for feedback, not enforcement.
-                        if (product.stock <= 0) {
-                            this.showError = true;
-                            this.errorMessage = product.reserved_stock > 0
-                                ? `${product.name} is out of stock - all remaining units are reserved for cylinder collections.`
-                                : `${product.name} is out of stock.`;
-                            setTimeout(() => this.showError = false, 4000);
-                            return;
-                        }
+                        // One iframe, reused. A till stays open all day, so
+                        // creating a node per sale would leak one per receipt.
+                        let frame = document.getElementById('receiptFrame');
 
-                        const existingIndex = this.cart.findIndex(item => item.id === product.id);
-
-                        if (existingIndex >= 0) {
-                            // Check if adding one more would exceed stock
-                            if (this.cart[existingIndex].quantity + 1 > product.stock) {
-                                this.showError = true;
-                                this.errorMessage = `Cannot add more. Only ${product.stock} available in stock.`;
-                                setTimeout(() => this.showError = false, 3000);
-                                return;
-                            }
-
-                            this.cart[existingIndex].quantity += 1;
-                        } else {
-                            this.cart.push({
-                                ...product,
-                                quantity: 1,
-                                serial_number: product.serial_number || null
-                            });
+                        if (!frame) {
+                            frame = document.createElement('iframe');
+                            frame.id = 'receiptFrame';
+                            frame.setAttribute('aria-hidden', 'true');
+                            frame.setAttribute('tabindex', '-1');
+                            frame.style.position = 'fixed';
+                            frame.style.left = '-9999px';
+                            frame.style.width = '0';
+                            frame.style.height = '0';
+                            frame.style.border = '0';
+                            document.body.appendChild(frame);
                         }
 
-                        this.updateTotals();
-                    },
+                        /*
+                            The receipt page prints ITSELF via ?autoprint=1,
+                            rather than the parent reaching into the frame. Only
+                            that page paginates, so a receipt is one 57mm slip
+                            instead of the whole dashboard across two sheets.
 
-                    // Enhanced quantity update with stock checking
-                    updateQuantity(index, change) {
-                        const item = this.cart[index];
-                        if (!item) return;
-
-                        const newQuantity = item.quantity + change;
-
-                        // Find the product to check stock
-                        const product = this.allProducts.find(p => p.id === item.id);
-
-                        if (newQuantity > 0 && product) {
-                            if (newQuantity <= product.stock) {
-                                item.quantity = newQuantity;
-                            } else {
-                                this.showError = true;
-                                this.errorMessage = `Cannot add more. Only ${product.stock} available in stock.`;
-                                setTimeout(() => this.showError = false, 3000);
-                            }
-                        } else if (newQuantity <= 0) {
-                            this.removeFromCart(index);
-                        }
-
-                        this.updateTotals();
-                    },
-
-                    // Reset sale state
-                    resetSaleState() {
-                        this.cart = [];
-                        this.paymentMethod = 'cash';
-                        this.customerMode = 'none';
-                        this.customerDetails = { customer_id: null, name: '', phone: '' };
-                        this.clearCustomerSelection();
-                        this.recentlyAddedCustomerId = null; // Clear new customer indicator
-                        this.showReceipt = false;
-                        this.showError = false;
-                        this.errorMessage = '';
-                        this.updateTotals();
-                    },
-
-                    // Update totals
-                    updateTotals() {
-                        this.subtotal = this.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-                        this.total = this.subtotal; // No tax for now
-                    },
-
-                    // Remove from cart
-                    removeFromCart(index) {
-                        this.cart.splice(index, 1);
-                        this.updateTotals();
-                    },
-
-                    // Close receipt and reset
-                    closeReceipt() {
-                        this.showReceipt = false;
-                        this.resetSaleState();
-                        
-                        // Update sync status after closing receipt (only if offline mode enabled)
-                        if (this.offlineModeEnabled) {
-                            this.updateSyncStatus();
-                        }
-                    },
-
-                    // Print receipt
-                    printReceipt() {
-                        this.showReceipt = true;
-                        const receiptElement = document.querySelector('.printable-receipt');
-
-                        if (receiptElement) {
-                            receiptElement.style.display = 'block';
-                        }
-
-                        setTimeout(() => {
-                            window.print();
-                        }, 300);
+                            The timestamp defeats the cache: re-printing the
+                            same sale would otherwise reuse the loaded document
+                            and never fire load again.
+                        */
+                        frame.src = '{{ url('pos/sales') }}/' + saleId
+                            + '/receipt?autoprint=1&t=' + Date.now();
                     },
 
                     // Category management (existing methods)
@@ -2441,22 +2002,6 @@
                     },
 
                     // Handle customer mode changes
-                    handleCustomerModeChange(newMode) {
-                        if (newMode === 'existing') {
-                            // Clear manual entry fields when switching to existing customer mode
-                            this.customerDetails.name = '';
-                            this.customerDetails.phone = '';
-                        } else if (newMode === 'new') {
-                            // Clear customer selection when switching to new customer mode
-                            this.clearCustomerSelection();
-                        } else if (newMode === 'none') {
-                            // Walk-in: discard anything half-entered so it cannot
-                            // be sent with the sale.
-                            this.clearCustomerSelection();
-                            this.customerDetails.name = '';
-                            this.customerDetails.phone = '';
-                        }
-                    },
 
                     /**
                      * Credit has to be owed by somebody, so the walk-in option is
@@ -2464,14 +2009,6 @@
                      * moves the cashier to the customer picker rather than
                      * leaving a hidden, unselectable mode active.
                      */
-                    handlePaymentMethodChange(method) {
-                        this.paymentMethod = method;
-
-                        if (method === 'credit' && this.customerMode === 'none') {
-                            this.customerMode = 'existing';
-                            this.handleCustomerModeChange('existing');
-                        }
-                    }
                 }
             }
         </script>

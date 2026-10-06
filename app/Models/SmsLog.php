@@ -18,6 +18,8 @@ class SmsLog extends Model
     public const PURPOSE_CYLINDER_RECEIPT = 'cylinder_receipt';
     public const PURPOSE_CYLINDER_THANK_YOU = 'cylinder_thank_you';
     public const PURPOSE_PAYMENT_RECEIVED = 'payment_received';
+    public const PURPOSE_RIDER_ALLOCATED = 'rider_allocated';
+    public const PURPOSE_RIDER_COMPLETED = 'rider_completed';
     public const PURPOSE_CAMPAIGN = 'campaign';
 
     protected $fillable = [

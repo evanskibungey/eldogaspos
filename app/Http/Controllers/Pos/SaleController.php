@@ -113,6 +113,33 @@ class SaleController extends Controller
     }
 
     /**
+     * The 57mm thermal receipt for one sale, on a page of its own.
+     *
+     * The POS Print button loads this into a hidden iframe and prints it. It
+     * is a separate page rather than a hidden div on the dashboard because
+     * `visibility: hidden` leaves elements occupying layout - the dashboard's
+     * full height still paginated and every receipt came out on two sheets.
+     *
+     * Also reachable directly as a reprint. Without ?autoprint=1 it renders
+     * with a Print button instead of printing itself.
+     *
+     * @param  \App\Models\Sale  $sale
+     * @return \Illuminate\View\View
+     */
+    public function receipt(Sale $sale)
+    {
+        // Same rule as show(): a cashier may reprint their own sales, an admin
+        // may reprint anyone's.
+        if ($sale->user_id !== auth()->id() && !auth()->user()->isAdmin()) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $sale->load(['customer', 'items.product', 'user']);
+
+        return view('pos.receipts.thermal', compact('sale'));
+    }
+
+    /**
      * Void the specified sale.
      *
      * @param  \App\Models\Sale  $sale

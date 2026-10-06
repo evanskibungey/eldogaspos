@@ -25,15 +25,18 @@ class CylinderController extends Controller
     protected $stockService;
     protected $referenceNumberService;
     protected $orderNumberService;
+    protected $saleRecorder;
 
     public function __construct(
         StockService $stockService,
         ReferenceNumberService $referenceNumberService,
-        OrderNumberService $orderNumberService
+        OrderNumberService $orderNumberService,
+        \App\Services\FulfilmentSaleRecorder $saleRecorder
     ) {
         $this->stockService = $stockService;
         $this->referenceNumberService = $referenceNumberService;
         $this->orderNumberService = $orderNumberService;
+        $this->saleRecorder = $saleRecorder;
     }
 
     public function index(Request $request)
@@ -612,6 +615,31 @@ class CylinderController extends Controller
             if ($request->input('payment_status', 'paid') === 'paid' && $cylinder->isPending()) {
                 $this->reversePaymentObligation($cylinder);
                 $updates['payment_status'] = 'paid';
+            }
+
+            // Record the revenue.
+            //
+            // Completing is the moment the cylinders are handed over and the
+            // money is due, so this is the sale. Without it the refill side of
+            // the business - about half the shop's takings - never reached the
+            // `sales` table, and so was missing from the POS sales badge, the
+            // admin Sales Overview and every cashier report.
+            //
+            // Stock has already moved above under `cylinder_collection`, which
+            // is why this does NOT go through StockService: doing so would
+            // deduct the same cylinders twice.
+            if (!$cylinder->saleAlreadyRecorded() && $cylinder->items->isNotEmpty()) {
+                $sale = $this->saleRecorder->record($cylinder->saleLines(), [
+                    'user_id' => Auth::id() ?? $cylinder->created_by,
+                    'customer_id' => $cylinder->customer_id
+                        ?? $this->saleRecorder->walkInCustomer()->id,
+                    'order_number' => $updates['order_number'] ?? $cylinder->order_number,
+                    'payment_status' => $updates['payment_status'] ?? $cylinder->payment_status,
+                    'notes' => "Cylinder {$cylinder->transaction_type} "
+                        . "(Ref: {$cylinder->reference_number})",
+                ]);
+
+                $updates['sale_id'] = $sale->id;
             }
 
             $cylinder->update($updates);

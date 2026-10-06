@@ -67,6 +67,32 @@ class ReferenceNumberService
     }
 
     /**
+     * Reference for a rider's cylinder allocation: RDR<date><sequence>.
+     *
+     * Same shape and same locking as the cylinder reference - it is the number
+     * the rider is texted and the number the admin completes against, so two
+     * allocations must never share one even when a busy morning books several
+     * out at the same moment.
+     */
+    public function generateRiderReference(): string
+    {
+        return DB::transaction(function () {
+            $prefix = 'RDR';
+            $date = now()->format('Ymd');
+
+            $last = DB::table('rider_allocations')
+                ->where('reference_number', 'like', $prefix . $date . '%')
+                ->lockForUpdate()
+                ->orderBy('id', 'desc')
+                ->first();
+
+            $newNumber = $last ? intval(substr($last->reference_number, -3)) + 1 : 1;
+
+            return $prefix . $date . str_pad($newNumber, 3, '0', STR_PAD_LEFT);
+        });
+    }
+
+    /**
      * Verify if a receipt number is unique
      *
      * @param string $receiptNumber

@@ -12,6 +12,8 @@ class VerifyCsrfToken extends Middleware
      * @var array<int, string>
      */
     protected $except = [
-        //
+        // The SMS gateway posts inbound messages here and has no session to
+        // carry a token. It is protected by the secret in the URL instead.
+        'sms/inbound/*',
     ];
 }

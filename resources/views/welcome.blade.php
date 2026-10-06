@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ config('settings.company_name', 'EldoGas') }} POS</title>
+        <title>{{ config('settings.company_name', 'EldoGas') }}</title>
         
         <!-- Include Tailwind CSS CDN -->
         <script src="https://cdn.tailwindcss.com"></script>
@@ -65,7 +65,7 @@
                             @endif
                         </div>
                         <span class="ml-3 text-xl font-bold text-gray-900">
-                            <span>{{ config('settings.company_name', 'Eldo') }}</span><span class="text-orange-500">_POS</span>
+                            <span>{{ config('settings.company_name', 'EldoGas') }}</span>
                         </span>
                     </div>
                     

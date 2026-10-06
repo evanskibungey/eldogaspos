@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>{{ config('settings.company_name', 'EldoGas') }} POS</title>
+        <title>{{ config('settings.company_name', 'EldoGas') }}</title>
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
@@ -32,6 +32,23 @@
         <div class="h-1 bg-orange-500 w-full absolute top-0 left-0 z-50"></div>
         
         <x-sidebar-layout>
+            {{--
+                Eleven views pass an <x-slot name="header">, and nothing had
+                ever rendered it - so their titles vanished and, worse, the
+                action buttons inside them did too. "Send bulk SMS", "New
+                Category", "New User" and "Add Product" were all unreachable
+                except by typing the URL.
+
+                Rendered here rather than in the sidebar's own top bar: that
+                bar names the section from the route, this names the page and
+                carries its actions.
+            --}}
+            @isset($header)
+                <div class="mb-6">
+                    {{ $header }}
+                </div>
+            @endisset
+
             {{ $slot }}
         </x-sidebar-layout>
 

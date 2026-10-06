@@ -62,15 +62,15 @@ class ReceiptMessageItemsTest extends TestCase
      */
     private function receiptTemplate(): string
     {
-        return "Drop-off: {items}\nKSh 3,500.00\nPayment: PENDING"
+        return "Drop-off: {items}\nPayment: PENDING"
             . "\nRef CYL20260812001 to collect. Did you know you can order using the EldoGas App"
-            . "\nItishaTunaDeliver, Asante.\nhttps://eldogas.co.ke/app";
+            . "\nItishaTunaDeliver, Asante.\nhttps://eldogas.ke/get";
     }
 
     /** Mirrors the live POS sale receipt in ReceiptMessage::forSale(). */
     private function saleTemplate(): string
     {
-        return "{items}\nKSh 3,500.00\nCash\nItishaTunaDeliver, Asante.\nhttps://eldogas.co.ke/app";
+        return "{items}\nCash\nItishaTunaDeliver, Asante.\nhttps://eldogas.ke/get";
     }
 
     private function longCart(): array

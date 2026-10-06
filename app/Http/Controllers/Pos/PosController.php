@@ -69,6 +69,7 @@ class PosController extends Controller
             
             // Get cylinder statistics for POS dashboard
             $cylinderStats = $this->getCylinderStatistics();
+            $salesStats = $this->getTodaySalesStatistics();
                 
             // Format product data for frontend display
             $formattedProducts = $products->map(function ($product) {
@@ -110,7 +111,8 @@ class PosController extends Controller
             return view('pos.dashboard', [
                 'products' => $formattedProducts,
                 'categories' => $categories,
-                'cylinderStats' => $cylinderStats
+                'cylinderStats' => $cylinderStats,
+                'salesStats' => $salesStats,
             ]);
         } catch (\Exception $e) {
             Log::error('Error in POS index: ' . $e->getMessage());
@@ -149,7 +151,26 @@ class PosController extends Controller
                 'cart_items.*.quantity' => 'required|integer|min:1',
                 'cart_items.*.serial_number' => 'nullable|string|max:255',
                 'payment_method' => 'required|in:cash,credit',
+                'idempotency_key' => 'nullable|string|max:64',
             ]);
+
+            // Quick-sale completes a transaction on a single tap, with no cart
+            // to review and no confirm step. A double-click, an impatient second
+            // tap or a retried request would otherwise deduct stock and take
+            // money twice, so a repeat of the same key returns the original sale
+            // rather than making another.
+            if ($request->filled('idempotency_key')) {
+                $existing = Sale::where('idempotency_key', $request->input('idempotency_key'))->first();
+
+                if ($existing) {
+                    Log::info('Duplicate sale suppressed by idempotency key', [
+                        'sale_id' => $existing->id,
+                        'idempotency_key' => $request->input('idempotency_key'),
+                    ]);
+
+                    return response()->json($this->saleResponsePayload($existing));
+                }
+            }
 
             // Customer details are mandatory on credit - the balance has to be
             // owed by someone - and optional on cash, where naming the customer
@@ -202,6 +223,7 @@ class PosController extends Controller
                 'user_id' => auth()->id(),
                 'customer_id' => $customer->id,
                 'receipt_number' => $receiptNumber,
+                'idempotency_key' => $request->input('idempotency_key'),
                 'total_amount' => 0,
                 'payment_method' => $request->payment_method,
                 'payment_status' => $request->payment_method === 'cash' ? 'paid' : 'pending',
@@ -450,6 +472,57 @@ class PosController extends Controller
         return round($total, 2);
     }
 
+    /**
+     * Rebuild the checkout response for a sale that already exists.
+     *
+     * Returned when a request repeats an idempotency key, so the till gets the
+     * same receipt number and lines it would have got first time and can print
+     * from them. `stock_after` is the product's current sellable stock rather
+     * than the level at the time of sale - by now other tills may have sold
+     * more, and the grid wants today's truth.
+     */
+    private function saleResponsePayload(Sale $sale): array
+    {
+        $sale->loadMissing(['items.product', 'customer']);
+
+        $items = $sale->items->map(fn ($item) => [
+            'id' => $item->product_id,
+            'name' => optional($item->product)->name,
+            'quantity' => $item->quantity,
+            'price' => (float) $item->unit_price,
+            'subtotal' => (float) $item->subtotal,
+            'order_number' => $item->order_number,
+            'stock_after' => optional($item->product)->available_stock,
+            'serial_number' => $item->serial_number,
+        ])->all();
+
+        return [
+            'success' => true,
+            'duplicate' => true,
+            'receipt_number' => $sale->receipt_number,
+            'order_number' => $sale->order_number,
+            'message' => 'Sale already recorded',
+            'sale_id' => $sale->id,
+            'customer' => $sale->customer ? [
+                'id' => $sale->customer->id,
+                'name' => $sale->customer->name,
+                'phone' => $sale->customer->phone,
+                'balance' => $sale->customer->balance,
+            ] : null,
+            'receipt_data' => [
+                'date' => $sale->created_at->format('Y-m-d H:i:s'),
+                'items' => $items,
+                'total' => (float) $sale->total_amount,
+                'order_number' => $sale->order_number,
+                'payment_method' => $sale->payment_method,
+                'customer' => $sale->customer ? [
+                    'name' => $sale->customer->name,
+                    'phone' => $sale->customer->phone,
+                ] : null,
+            ],
+        ];
+    }
+
     private function createSaleRecord(array $saleData)
     {
         try {
@@ -590,6 +663,26 @@ class PosController extends Controller
     /**
      * Get cylinder transaction statistics for POS dashboard
      */
+    /**
+     * Today's takings, for the badge in the POS header.
+     *
+     * Voided sales are excluded, the same rule the admin Sales Overview uses -
+     * a sale that was reversed is not a sale, and a cashier comparing the two
+     * screens must not see two different numbers for the same day.
+     *
+     * This is the figure at page load. The terminal increments it as sales are
+     * taken, because the POS screen does not reload between them.
+     */
+    private function getTodaySalesStatistics()
+    {
+        $today = Sale::whereDate('created_at', Carbon::today())->notVoided();
+
+        return [
+            'count' => (clone $today)->count(),
+            'amount' => (float) (clone $today)->sum('total_amount'),
+        ];
+    }
+
     private function getCylinderStatistics()
     {
         return [

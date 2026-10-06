@@ -63,6 +63,12 @@ return [
         // Flip this if a live send is rejected for an invalid recipient.
         'plus_prefix' => (bool) env('TALKSASA_PLUS_PREFIX', false),
 
+        // Shared secret in the inbound callback URL. The gateway cannot log
+        // in, so this is what stands between the endpoint and anyone who finds
+        // it. Empty means the endpoint 404s, which is the safe default: no
+        // secret, no callback.
+        'inbound_secret' => env('TALKSASA_INBOUND_SECRET'),
+
         'endpoints' => [
             'send' => env('TALKSASA_SEND_PATH', 'sms/send'),
             'show' => env('TALKSASA_SHOW_PATH', 'sms/{uid}'),

@@ -35,17 +35,17 @@ class ReceiptMessage
     public static function forSale(Sale $sale): string
     {
         $currency = setting('currency_symbol', 'KSh');
-        $total = number_format((float) $sale->total_amount, 2);
 
         // No company line: the sender ID already reads ELDOGAS, so repeating it
         // in the body spends 12 billed characters saying nothing new. Those
         // characters go to the product name instead, which is the part the
         // customer cannot get anywhere else.
         //
-        // The items also replace the receipt number - they are holding the
-        // printed receipt if they need the reference.
+        // No price either. Prices move, and a figure sitting in someone's inbox
+        // outlives the price list it came from; the printed receipt is the
+        // record of what was charged. The items replace the receipt number -
+        // they are holding that receipt if they need the reference.
         $message = "{items}\n"
-            . "{$currency} {$total}\n"
             . ucfirst((string) $sale->payment_method);
 
         if ($sale->payment_method === 'credit' && $sale->customer) {
@@ -70,19 +70,18 @@ class ReceiptMessage
      */
     public static function cylinderCreated(CylinderTransaction $transaction): string
     {
-        $currency = setting('currency_symbol', 'KSh');
-        $total = number_format((float) $transaction->getTotalAmount(), 2);
-
-        // No company header, and "Cylinder" dropped from the label: the sender
-        // ID already reads ELDOGAS, and this is the tightest message in the
-        // system. A new drop-off has no order number yet, so it carries the
-        // 14-character reference as well as the items, the footer and the app
-        // link. Those reclaimed characters are what let it name the product
-        // instead of falling back to "1 item".
+        // No company header, no price, and "Cylinder" dropped from the label.
+        // The sender ID already reads ELDOGAS, and this is the tightest message
+        // in the system: a new drop-off has no order number yet, so it carries
+        // the 14-character reference as well as the items, the footer and the
+        // app link.
+        //
+        // Dropping the price matters most here of all. A drop-off is quoted
+        // when it is left but paid when it is collected, so a figure texted
+        // today can disagree with what is actually owed on collection day.
         $type = $transaction->isDropOff() ? 'Drop-off' : 'Collection';
 
-        $message = "{$type}: {items}\n"
-            . "{$currency} {$total}";
+        $message = "{$type}: {items}";
 
         if ($transaction->isPending()) {
             $message .= "\nPayment: PENDING";

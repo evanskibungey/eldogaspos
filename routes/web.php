@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\SmsController;
 use App\Http\Controllers\Admin\CylinderController as AdminCylinderController;
+use App\Http\Controllers\Admin\RiderController;
 use App\Http\Controllers\Pos\PosController;
 use App\Http\Controllers\Pos\SaleController;
 use App\Http\Controllers\Pos\InventoryController;
@@ -63,6 +64,19 @@ Route::get('/app', function () {
 
     return redirect()->away($destination);
 })->name('app.download');
+
+/*
+| Inbound SMS from the gateway, so a customer texting STOP is honoured without
+| anyone having to read it.
+|
+| Public because the gateway cannot log in; the secret in the path is what
+| protects it, and an unset secret makes the route 404. CSRF-exempt for the
+| same reason - see VerifyCsrfToken.
+|
+| Nothing calls this until TalkSasa is pointed at it. Until then, opt-outs are
+| recorded through the admin toggle on the customer.
+*/
+Route::post('/sms/inbound/{secret}', [SmsController::class, 'inbound'])->name('sms.inbound');
 
 // Modified dashboard route to handle role-based redirection
 Route::get('/dashboard', function () {
@@ -197,7 +211,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::prefix('sms')->name('sms.')->group(function () {
             Route::get('/', [SmsController::class, 'index'])->name('index');
             Route::get('/compose', [SmsController::class, 'compose'])->name('compose');
+            // Costs nothing and sends nothing: what the current filter matches.
+            Route::get('/audience-preview', [SmsController::class, 'preview'])->name('audience-preview');
             Route::post('/send', [SmsController::class, 'send'])->name('send');
+            Route::post('/opt-out/{customer}', [SmsController::class, 'toggleOptOut'])->name('opt-out');
             Route::get('/balance', [SmsController::class, 'balance'])->name('balance');
         });
 
@@ -229,6 +246,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // under a row lock when the sale is submitted.
         Route::post('/check-stock', [PosController::class, 'checkStock'])->name('check-stock');
         Route::get('/sales/history', [SaleController::class, 'history'])->name('sales.history');
+        // Before sales.show only for readability - the extra segment already
+        // makes them unambiguous.
+        Route::get('/sales/{sale}/receipt', [SaleController::class, 'receipt'])->name('sales.receipt');
         Route::get('/sales/{sale}', [SaleController::class, 'show'])->name('sales.show');
         Route::post('/sales/{sale}/void', [SaleController::class, 'void'])->name('sales.void');
         
@@ -297,5 +317,38 @@ Route::middleware(['auth', 'verified'])->group(function () {
         })->name('test-errors');
     });
 });
+
+/*
+|--------------------------------------------------------------------------
+| Rider delivery allocation
+|--------------------------------------------------------------------------
+| Registered under both prefixes for the same reason cylinder management is:
+| the POS terminal books cylinders out to a rider and the admin closes the
+| order off when the rider returns. Cashiers reach it under /pos, admins
+| under /admin, and both hit the same controller.
+*/
+$riderRoutes = function () {
+    Route::get('/', [RiderController::class, 'index'])->name('index');
+    Route::post('/', [RiderController::class, 'store'])->name('store');
+
+    // Used by the POS pick-up button
+    Route::get('/available', [RiderController::class, 'available'])->name('available');
+    Route::post('/allocate', [RiderController::class, 'allocate'])->name('allocate');
+
+    Route::post('/allocations/{allocation}/complete', [RiderController::class, 'complete'])
+        ->name('allocations.complete');
+    Route::post('/allocations/{allocation}/cancel', [RiderController::class, 'cancel'])
+        ->name('allocations.cancel');
+
+    // Parameterised routes last so /available and /allocate are never read as a rider id
+    Route::get('/{rider}', [RiderController::class, 'show'])->name('show');
+    Route::post('/{rider}/toggle-status', [RiderController::class, 'toggleStatus'])->name('toggle-status');
+};
+
+Route::middleware(['auth', 'verified', 'admin.or.cashier'])
+    ->prefix('pos/riders')->name('pos.riders.')->group($riderRoutes);
+
+Route::middleware(['auth', 'verified', 'role:admin'])
+    ->prefix('admin/riders')->name('admin.riders.')->group($riderRoutes);
 
 require __DIR__.'/auth.php';

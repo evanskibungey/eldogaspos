@@ -18,6 +18,7 @@ class CylinderTransaction extends Model
     protected $fillable = [
         'reference_number',
         'order_number',
+        'sale_id',
         'stock_status',
         'stock_committed_at',
         'customer_id',
@@ -212,6 +213,41 @@ class CylinderTransaction extends Model
     public function getTotalAmount()
     {
         return $this->amount + $this->deposit_amount;
+    }
+
+    /** The sale written when this transaction was completed, if any. */
+    public function sale()
+    {
+        return $this->belongsTo(\App\Models\Sale::class);
+    }
+
+    /**
+     * Whether the revenue from this transaction has already been recorded.
+     *
+     * Checked rather than assumed: completing is guarded elsewhere, but a
+     * retried request or a backfill run twice must never book the same money
+     * into `sales` a second time.
+     */
+    public function saleAlreadyRecorded(): bool
+    {
+        return $this->sale_id !== null;
+    }
+
+    /**
+     * Line items shaped for FulfilmentSaleRecorder.
+     *
+     * The deposit is deliberately absent. It is a refundable obligation that
+     * completion hands back, not money earned, so it must not inflate revenue.
+     */
+    public function saleLines(): array
+    {
+        return $this->items->map(fn ($item) => [
+            'product_id' => $item->product_id,
+            'quantity' => (int) $item->quantity,
+            'unit_price' => (float) $item->unit_price,
+            'subtotal' => (float) $item->subtotal,
+            'serial_number' => null,
+        ])->all();
     }
 
     public function calculateTotalFromItems()

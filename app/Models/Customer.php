@@ -14,7 +14,15 @@ class Customer extends Model
         'phone',
         'credit_limit',
         'balance',
-        'status'
+        'status',
+        'sms_opt_out',
+        'sms_opt_out_at',
+        'sms_opt_out_source',
+    ];
+
+    protected $casts = [
+        'sms_opt_out' => 'boolean',
+        'sms_opt_out_at' => 'datetime',
     ];
 
     /**
@@ -37,6 +45,48 @@ class Customer extends Model
     public function scopeWithPhone($query, ?string $phone)
     {
         return $query->whereIn('phone', \App\Services\Sms\PhoneNumber::variants($phone));
+    }
+
+    /**
+     * Customers who may be sent marketing.
+     *
+     * Only campaigns use this. Receipts and collection notices are service
+     * messages about a purchase the customer made, so they are sent whatever
+     * the marketing preference says.
+     */
+    public function scopeMarketable($query)
+    {
+        return $query->selectable()->where('sms_opt_out', false);
+    }
+
+    /**
+     * Record that this person has asked to stop receiving marketing.
+     *
+     * Idempotent, and it keeps the FIRST request's timestamp: if someone opts
+     * out twice, when they first asked is the answer that matters.
+     */
+    public function optOutOfSms(string $source = 'admin'): bool
+    {
+        if ($this->sms_opt_out) {
+            return false;
+        }
+
+        $this->forceFill([
+            'sms_opt_out' => true,
+            'sms_opt_out_at' => now(),
+            'sms_opt_out_source' => $source,
+        ])->save();
+
+        return true;
+    }
+
+    public function optInToSms(): void
+    {
+        $this->forceFill([
+            'sms_opt_out' => false,
+            'sms_opt_out_at' => null,
+            'sms_opt_out_source' => null,
+        ])->save();
     }
 
     public function sales()

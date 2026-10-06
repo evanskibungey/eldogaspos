@@ -309,11 +309,17 @@ class SharedCustomerRegistryTest extends TestCase
      * The page must request the route that shares its session, not the
      * sanctum-guarded API and not the versioned path that never existed.
      */
-    public function test_the_pos_page_requests_the_working_customer_endpoint(): void
+    /**
+     * The POS no longer picks customers at all - quick-sale sells against the
+     * walk-in record - so the till makes no customer request. The endpoint
+     * itself still has to work: the cylinder screens use it, and it is covered
+     * by test_the_pos_customer_picker_endpoint_returns_customers above.
+     */
+    public function test_the_pos_page_no_longer_fetches_customers(): void
     {
         $html = $this->actingAs($this->cashier)->get('/pos/dashboard')->assertOk()->getContent();
 
-        $this->assertStringContainsString('/pos/customers/search', $html);
+        $this->assertStringNotContainsString('/pos/customers/search', $html);
         $this->assertStringNotContainsString('/api/v1/customers', $html);
     }
 }

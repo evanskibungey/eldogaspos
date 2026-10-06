@@ -192,16 +192,17 @@ class CashSaleCustomerTest extends TestCase
     |--------------------------------------------------------------------------
     */
 
-    public function test_the_pos_offers_the_customer_options_for_cash(): void
+    /**
+     * The POS screen no longer offers a customer picker - quick-sale sells
+     * against the walk-in record. The endpoint still accepts customer details,
+     * which is what every other test in this file covers, so the capability is
+     * intact for the API and for any screen that wants it back.
+     */
+    public function test_the_pos_screen_no_longer_picks_a_customer(): void
     {
         $html = $this->actingAs($this->cashier)->get('/pos/dashboard')->assertOk()->getContent();
 
-        // The walk-in escape hatch, and the two ways to name someone.
-        $this->assertStringContainsString("customerMode = 'none'", $html);
-        $this->assertStringContainsString("customerMode = 'existing'", $html);
-        $this->assertStringContainsString("customerMode = 'new'", $html);
-
-        // The customer block must no longer be hidden behind credit.
-        $this->assertStringNotContainsString('x-show="paymentMethod === \'credit\'"', $html);
+        $this->assertStringNotContainsString("customerMode", $html);
+        $this->assertStringNotContainsString('paymentMethod', $html);
     }
 }

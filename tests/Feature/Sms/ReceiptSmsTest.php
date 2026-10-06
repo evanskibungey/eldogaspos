@@ -104,17 +104,49 @@ class ReceiptSmsTest extends TestCase
      * company line - the sender ID already says ELDOGAS, and those characters
      * buy the product name instead.
      */
-    public function test_the_receipt_names_the_item_and_total(): void
+    /**
+     * A cash receipt confirms what was bought and how it was paid - and no
+     * price. Prices move, and a figure left sitting in someone's inbox outlives
+     * the price list it came from; the printed receipt is the record of what
+     * was charged.
+     */
+    public function test_the_cash_receipt_names_the_item_and_omits_the_price(): void
     {
-        $this->setSetting('sms_app_link', 'https://eldogas.co.ke/app');
+        $this->setSetting('sms_app_link', 'https://eldogas.ke/get');
 
         $product = $this->cylinder(20, 1500);
-        $customer = Customer::create([
-            'name' => 'Jane',
-            'phone' => '0712345678',
-            'status' => 'active',
-            'credit_limit' => 10000,
-        ]);
+        $customer = $this->namedCustomer();
+
+        $this->actingAs($this->cashier)->postJson('/pos/sales', [
+            'cart_items' => [['id' => $product->id, 'quantity' => 2]],
+            'payment_method' => 'cash',
+            'customer_details' => ['customer_id' => $customer->id],
+        ])->assertOk();
+
+        $message = SmsLog::where('purpose', SmsLog::PURPOSE_SALE_RECEIPT)->first()->message;
+
+        $this->assertStringContainsString('2x ' . $product->name, $message);
+        $this->assertStringContainsString('Cash', $message);
+        $this->assertStringContainsString('ItishaTunaDeliver, Asante.', $message);
+
+        // No money at all on a cash receipt: 2 x 1,500 would read as 3,000.00.
+        $this->assertStringNotContainsString('3,000.00', $message);
+        $this->assertStringNotContainsString('KSh', $message);
+
+        // The company name must not reappear as a header line.
+        $this->assertStringStartsWith('2x ' . $product->name, $message);
+    }
+
+    /**
+     * A credit receipt keeps the balance. That is not a price - it is what the
+     * customer still owes, and it is the reason to send them the message.
+     */
+    public function test_a_credit_receipt_keeps_the_balance_but_not_the_price(): void
+    {
+        $this->setSetting('sms_app_link', 'https://eldogas.ke/get');
+
+        $product = $this->cylinder(20, 1500);
+        $customer = $this->namedCustomer();
 
         $this->actingAs($this->cashier)->postJson('/pos/sales', [
             'cart_items' => [['id' => $product->id, 'quantity' => 2]],
@@ -124,12 +156,15 @@ class ReceiptSmsTest extends TestCase
 
         $message = SmsLog::where('purpose', SmsLog::PURPOSE_SALE_RECEIPT)->first()->message;
 
-        $this->assertStringContainsString('2x ' . $product->name, $message);
-        $this->assertStringContainsString('3,000.00', $message);
-        $this->assertStringContainsString('ItishaTunaDeliver, Asante.', $message);
+        $this->assertStringContainsString('Balance:', $message);
+        $this->assertStringContainsString('3,000.00', $message, 'The balance owed after this sale.');
 
-        // The company name must not reappear as a header line.
-        $this->assertStringStartsWith('2x ' . $product->name, $message);
+        // The price line is gone: the only amount present is the balance.
+        $this->assertSame(
+            1,
+            substr_count($message, 'KSh'),
+            "Only the balance should carry a currency amount:\n" . $message
+        );
     }
 
     private const FULL_STORE_LINK =

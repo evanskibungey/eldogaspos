@@ -2,7 +2,7 @@
 // Bumping this name is what evicts every previously cached page and asset.
 // It MUST be changed on any deployment that alters markup or assets, otherwise
 // browsers keep serving the old build from the previous cache.
-const CACHE_NAME = 'eldogas-pos-v3-20260911';
+const CACHE_NAME = 'eldogas-pos-v8-20260921';
 const STATIC_CACHE_URLS = [
     '/',
     '/pos/dashboard',

@@ -6,7 +6,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>{{ config('settings.company_name', 'EldoGas') }} POS</title>
+        <title>{{ config('settings.company_name', 'EldoGas') }}</title>
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
@@ -82,7 +82,7 @@
                     <!-- Mobile Logo (Only visible on small screens) -->
                     <div class="text-center mb-6 md:hidden">
                         <h1 class="text-2xl font-bold text-gray-900">
-                            <span>{{ config('settings.company_name', 'Eldo') }}</span><span class="text-orange-500">_POS</span>
+                            <span>{{ config('settings.company_name', 'EldoGas') }}</span>
                         </h1>
                     </div>
                     

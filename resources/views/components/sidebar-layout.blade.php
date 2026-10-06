@@ -73,10 +73,7 @@
                 </div>
                 <div class="ml-3 flex flex-col">
                     <span class="text-xl font-bold text-white">
-                        <span class="text-orange-500">{{ config('settings.company_name', 'Eldo') }}</span>
-                    </span>
-                    <span class="text-xs text-gray-400">
-                        <span class="text-orange-400">POS System</span>
+                        <span class="text-orange-500">{{ config('settings.company_name', 'EldoGas') }}</span>
                     </span>
                 </div>
             </div>
@@ -300,6 +297,16 @@
                         <span>Cylinder Management</span>
                     </a>
 
+                    <!-- Rider Cylinder Management -->
+                    <a href="{{ route('admin.riders.index') }}"
+                        class="group flex items-center px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-lg {{ request()->routeIs('admin.riders.*') ? 'bg-gray-800 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white' }}">
+                        <svg class="h-5 w-5 mr-3 {{ request()->routeIs('admin.riders.*') ? 'text-orange-400' : 'text-gray-400 group-hover:text-orange-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+                        </svg>
+                        <span>Rider Cylinders</span>
+                    </a>
+
                     <!-- Customer Management -->
                     <a href="{{ route('admin.customers.index') }}"
                         class="group flex items-center px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-lg {{ request()->routeIs('admin.customers.*') ? 'bg-gray-800 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white' }}">
@@ -310,15 +317,59 @@
                         <span>Customer Management</span>
                     </a>
 
-                    <!-- SMS -->
-                    <a href="{{ route('admin.sms.index') }}"
-                        class="group flex items-center px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-lg {{ request()->routeIs('admin.sms.*') ? 'bg-gray-800 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white' }}">
-                        <svg class="h-5 w-5 mr-3 {{ request()->routeIs('admin.sms.*') ? 'text-orange-400' : 'text-gray-400 group-hover:text-orange-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                        </svg>
-                        <span>SMS</span>
-                    </a>
+                    {{--
+                        SMS. A dropdown rather than a single link because
+                        Compose had no way in at all - its button lives in a
+                        page header, and sending a campaign is a deliberate
+                        act somebody should be able to navigate to.
+                    --}}
+                    <div>
+                        <button @click="activeDropdown = activeDropdown === 'sms' ? null : 'sms'"
+                            class="group flex w-full items-center justify-between px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-lg {{ request()->routeIs('admin.sms.*') ? 'bg-gray-800 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white' }}">
+                            <div class="flex items-center">
+                                <svg class="h-5 w-5 mr-3 {{ request()->routeIs('admin.sms.*') ? 'text-orange-400' : 'text-gray-400 group-hover:text-orange-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                </svg>
+                                <span>SMS</span>
+                            </div>
+                            <svg :class="{ 'rotate-180': activeDropdown === 'sms' }"
+                                class="h-4 w-4 transform transition-transform duration-200 {{ request()->routeIs('admin.sms.*') ? 'text-orange-400' : 'text-gray-400 group-hover:text-orange-400' }}"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+
+                        {{-- Open already when you are inside SMS, so the current page is visible. --}}
+                        <div x-show="activeDropdown === 'sms'"
+                            x-init="@if(request()->routeIs('admin.sms.*')) activeDropdown = 'sms' @endif"
+                            x-transition:enter="transition ease-out duration-200"
+                            x-transition:enter-start="opacity-0 transform -translate-y-2"
+                            x-transition:enter-end="opacity-100 transform translate-y-0"
+                            x-transition:leave="transition ease-in duration-150"
+                            x-transition:leave-start="opacity-100 transform translate-y-0"
+                            x-transition:leave-end="opacity-0 transform -translate-y-2"
+                            class="mt-1 space-y-1">
+
+                            <div class="pl-8 border-l-2 border-orange-500/30 ml-4 space-y-1">
+                                <a href="{{ route('admin.sms.index') }}"
+                                    class="flex items-center px-3 py-2 text-sm transition-colors rounded-md {{ request()->routeIs('admin.sms.index') ? 'text-orange-400 bg-gray-800/50' : 'text-gray-300 hover:text-orange-400 hover:bg-gray-800/30' }}">
+                                    <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span>Message History</span>
+                                </a>
+
+                                <a href="{{ route('admin.sms.compose') }}"
+                                    class="flex items-center px-3 py-2 text-sm transition-colors rounded-md {{ request()->routeIs('admin.sms.compose') ? 'text-orange-400 bg-gray-800/50' : 'text-gray-300 hover:text-orange-400 hover:bg-gray-800/30' }}">
+                                    <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
+                                    <span>Compose Campaign</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- INVENTORY SECTION -->
                     <div class="menu-separator"></div>
@@ -582,6 +633,16 @@
                         <span>Cylinder Management</span>
                     </a>
 
+                    <!-- Rider Cylinder Management for Cashier -->
+                    <a href="{{ route('pos.riders.index') }}"
+                        class="group flex items-center px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-lg {{ request()->routeIs('pos.riders.*') ? 'bg-gray-800 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white' }}">
+                        <svg class="h-5 w-5 mr-3 {{ request()->routeIs('pos.riders.*') ? 'text-orange-400' : 'text-gray-400 group-hover:text-orange-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+                        </svg>
+                        <span>Rider Cylinders</span>
+                    </a>
+
                     <!-- Customer Management for Cashier -->
                     <a href="{{ route('admin.customers.index') }}"
                         class="group flex items-center px-4 py-2.5 text-sm font-medium transition-all duration-200 rounded-lg {{ request()->routeIs('admin.customers.*') ? 'bg-gray-800 text-white' : 'text-gray-300 hover:bg-gray-800 hover:text-white' }}">
@@ -671,12 +732,14 @@
                                 Credit Management
                             @elseif(request()->routeIs('admin.cylinders.*'))
                                 Cylinder Management
+                            @elseif(request()->routeIs('admin.riders.*') || request()->routeIs('pos.riders.*'))
+                                Rider Cylinder Management
                             @elseif(request()->routeIs('pos.sales.*'))
                                 Sales Management
                             @elseif(request()->routeIs('pos.cylinders.*'))
                                 Cylinder Management
                             @else
-                                {{ config('app.name', 'EldoGas POS') }}
+                                {{ config('app.name', 'EldoGas') }}
                             @endif
                         </h1>
                         

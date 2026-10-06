@@ -79,6 +79,22 @@ class PhoneNumber
     }
 
     /**
+     * The number as a Kenyan would dial it: 0712345678.
+     *
+     * Storage and the gateway both want 254..., but a number put in front of a
+     * person is meant to be dialled. A rider reading "254722884226" off a text
+     * has to edit it before it will connect.
+     *
+     * @return string|null null when the input is not a usable mobile number.
+     */
+    public static function local(?string $raw): ?string
+    {
+        $msisdn = self::normalise($raw);
+
+        return $msisdn === null ? null : '0' . substr($msisdn, 3);
+    }
+
+    /**
      * Every spelling of a number that could already be stored against a
      * customer.
      *
